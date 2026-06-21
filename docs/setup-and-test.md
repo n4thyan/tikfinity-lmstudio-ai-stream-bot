@@ -11,7 +11,17 @@ copy .env.example .env
 py -m pip install -r requirements-dev.txt
 ```
 
-## 2. Test the OBS overlay without LM Studio
+## 2. Run the setup doctor
+
+This checks required files, important `.env` values, the OBS overlay URL, Discord status, and LM Studio connectivity.
+
+```powershell
+py -m src.doctor
+```
+
+It is OK if LM Studio fails here before you have started the LM Studio server. Fix the easy file/config warnings first, then come back to LM Studio after step 5.
+
+## 3. Test the OBS overlay without LM Studio
 
 This checks the browser source first, with no Tikfinity and no model involved.
 
@@ -31,7 +41,7 @@ Expected result:
 - A new local test message appears every few seconds.
 - If `OVERLAY_TTS_ENABLED=true`, the browser source should speak the sample replies.
 
-## 3. Test the bridge without LM Studio
+## 4. Test the bridge without LM Studio
 
 This checks command parsing, filters, cooldowns, queueing, Discord logging, and the OBS overlay.
 
@@ -55,7 +65,7 @@ Expected result:
 - Replies appear even though LM Studio is not running.
 - Discord receives logs if `DISCORD_WEBHOOK_URL` is set.
 
-## 4. Start LM Studio
+## 5. Start LM Studio
 
 In LM Studio:
 
@@ -71,7 +81,7 @@ Default `.env` value:
 LMSTUDIO_BASE_URL=http://127.0.0.1:1234/v1
 ```
 
-## 5. Find the exact model ID
+## 6. Find the exact model ID
 
 ```powershell
 py -m src.bridge --test-lmstudio
@@ -85,7 +95,13 @@ LMSTUDIO_MODEL=replace-with-the-listed-model-id
 
 Run the check again until it prints a test reply.
 
-## 6. Test the full local demo with LM Studio
+You can also rerun the full doctor after this:
+
+```powershell
+py -m src.doctor
+```
+
+## 7. Test the full local demo with LM Studio
 
 ```powershell
 py -m src.bridge --demo
@@ -107,7 +123,7 @@ Expected result:
 - Output is short enough for the stream.
 - Replies are logged to Discord if enabled.
 
-## 7. Check Tikfinity payloads before enabling the bot
+## 8. Check Tikfinity payloads before enabling the bot
 
 Open Tikfinity and connect it to your TikTok LIVE session. Then run:
 
@@ -124,7 +140,7 @@ Expected result:
 
 If parsed chat says `no chat message detected`, save the raw payload and update `extract_comment_payload()` in `src/bridge.py` to match the shape Tikfinity is sending.
 
-## 8. Run with Tikfinity
+## 9. Run with Tikfinity
 
 ```powershell
 py -m src.bridge
@@ -137,7 +153,7 @@ Expected result:
 - The overlay updates when viewers use commands.
 - Discord receives accepted, blocked, reply, and error logs depending on `.env` settings.
 
-## 9. Basic stream safety checks
+## 10. Basic stream safety checks
 
 Before leaving it running for a long session:
 
@@ -149,7 +165,7 @@ Before leaving it running for a long session:
 - Check Discord logs from your phone.
 - Keep the stream account open on your phone for emergency moderation.
 
-## 10. Recommended first-run settings
+## 11. Recommended first-run settings
 
 For the first real test, use conservative values:
 
