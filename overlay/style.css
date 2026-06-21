@@ -1,14 +1,15 @@
 :root {
-  font-family: "Segoe UI", Arial, sans-serif;
-  color: #eef7ff;
+  font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+  color: #d7ffd7;
   background: transparent;
-  --glass: rgba(9, 18, 32, 0.9);
-  --glass-strong: rgba(12, 26, 46, 0.96);
-  --line: rgba(190, 224, 255, 0.38);
-  --blue-top: rgba(77, 149, 235, 0.96);
-  --blue-bottom: rgba(26, 76, 145, 0.96);
-  --green: #89ffb0;
-  --muted: rgba(238, 247, 255, 0.72);
+  --terminal-bg: rgba(1, 8, 4, 0.94);
+  --terminal-bg-strong: rgba(0, 14, 6, 0.98);
+  --terminal-line: rgba(102, 255, 132, 0.42);
+  --terminal-green: #76ff8a;
+  --terminal-green-soft: rgba(118, 255, 138, 0.72);
+  --terminal-amber: #ffd36b;
+  --terminal-muted: rgba(215, 255, 215, 0.64);
+  --terminal-danger: #ff6b6b;
 }
 
 * {
@@ -29,182 +30,222 @@ body {
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
-  padding: 0 0 44px 44px;
+  padding: 0 0 46px 46px;
 }
 
-.window {
-  width: min(780px, 72vw);
-  border: 2px solid rgba(217, 240, 255, 0.82);
-  border-radius: 16px;
-  background: linear-gradient(180deg, var(--glass-strong), var(--glass));
+.terminal {
+  position: relative;
+  width: min(840px, 74vw);
+  border: 2px solid var(--terminal-line);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(118, 255, 138, 0.08), transparent 42%),
+    linear-gradient(180deg, var(--terminal-bg-strong), var(--terminal-bg));
   box-shadow:
-    0 18px 55px rgba(0, 0, 0, 0.54),
-    0 0 28px rgba(79, 154, 255, 0.16),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(7px);
+    0 22px 55px rgba(0, 0, 0, 0.68),
+    0 0 22px rgba(118, 255, 138, 0.22),
+    inset 0 0 24px rgba(118, 255, 138, 0.055);
   overflow: hidden;
 }
 
-.titlebar {
-  min-height: 48px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 9px 14px;
-  border-bottom: 1px solid var(--line);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.02)),
-    linear-gradient(180deg, var(--blue-top), var(--blue-bottom));
+.terminal::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.035) 0,
+    rgba(255, 255, 255, 0.035) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  mix-blend-mode: screen;
+  opacity: 0.48;
 }
 
-.identity {
+.terminal::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 65px rgba(0, 0, 0, 0.68);
+}
+
+.terminal-bar {
+  position: relative;
+  z-index: 1;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 13px;
+  border-bottom: 1px solid var(--terminal-line);
+  background:
+    linear-gradient(180deg, rgba(118, 255, 138, 0.16), rgba(118, 255, 138, 0.045)),
+    rgba(0, 0, 0, 0.52);
+}
+
+.terminal-title {
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
 }
 
-.dot {
-  width: 13px;
-  height: 13px;
-  flex: 0 0 13px;
-  border-radius: 999px;
-  background: var(--green);
-  box-shadow: 0 0 14px rgba(137, 255, 176, 0.92);
+.term-dot {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  border-radius: 2px;
+  background: var(--terminal-green);
+  box-shadow: 0 0 12px rgba(118, 255, 138, 0.9);
 }
 
 .title {
   display: block;
+  color: var(--terminal-green);
+  font-size: 1rem;
   font-weight: 900;
-  letter-spacing: 0.02em;
-  font-size: 1.04rem;
-  line-height: 1.05;
-}
-
-.subtitle {
-  display: block;
-  margin-top: 2px;
-  color: rgba(240, 248, 255, 0.74);
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-shadow: 0 0 10px rgba(118, 255, 138, 0.38);
+  white-space: nowrap;
 }
 
 .status {
   margin-left: auto;
   flex: 0 0 auto;
-  padding: 5px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  border-radius: 999px;
-  background: rgba(6, 19, 34, 0.32);
-  color: rgba(240, 248, 255, 0.9);
+  padding: 4px 9px;
+  border: 1px solid rgba(118, 255, 138, 0.42);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--terminal-amber);
   font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
+  font-weight: 900;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.screen {
-  padding: 19px 22px 17px;
+.terminal-screen {
+  position: relative;
+  z-index: 1;
+  padding: 18px 22px 16px;
 }
 
-.meta-row {
+.boot-row {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 9px;
+  gap: 9px;
+  margin-bottom: 12px;
+  color: var(--terminal-muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.label {
-  margin: 0;
-  min-width: 0;
-  color: var(--muted);
-  font-size: 0.86rem;
-  font-weight: 850;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.prompt-mark {
+  color: var(--terminal-amber);
+  font-weight: 950;
 }
 
 .command-hint {
-  margin: 0;
-  color: rgba(238, 247, 255, 0.58);
-  font-size: 0.78rem;
+  margin-left: auto;
+  color: rgba(215, 255, 215, 0.48);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
   white-space: nowrap;
-}
-
-.command-hint strong {
-  color: #ffffff;
-  font-weight: 900;
+  text-transform: lowercase;
 }
 
 .reply {
+  position: relative;
+  min-height: 2.2em;
   margin: 0;
-  font-size: clamp(1.75rem, 3.45vw, 2.7rem);
-  line-height: 1.08;
+  color: #eaffea;
+  font-size: clamp(1.52rem, 3.05vw, 2.32rem);
+  line-height: 1.12;
+  font-weight: 900;
+  letter-spacing: -0.045em;
+  text-shadow:
+    0 0 8px rgba(118, 255, 138, 0.26),
+    0 2px 16px rgba(0, 0, 0, 0.78);
+}
+
+.reply::before {
+  content: "C:\\AI> ";
+  color: var(--terminal-green);
   font-weight: 950;
-  letter-spacing: -0.035em;
-  text-shadow: 0 3px 14px rgba(0, 0, 0, 0.48);
+  letter-spacing: 0;
 }
 
 .reply.long {
-  font-size: clamp(1.45rem, 2.9vw, 2.22rem);
-  line-height: 1.1;
+  font-size: clamp(1.32rem, 2.62vw, 2rem);
+  line-height: 1.13;
 }
 
 .reply.xlong {
-  font-size: clamp(1.16rem, 2.25vw, 1.72rem);
-  line-height: 1.13;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.08rem, 2vw, 1.52rem);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
 }
 
 .prompt {
   min-height: 1.35em;
-  margin: 13px 0 0;
-  color: rgba(238, 247, 255, 0.64);
-  font-size: 0.95rem;
-  font-weight: 600;
+  margin: 14px 0 0;
+  color: var(--terminal-amber);
+  font-size: 0.92rem;
+  font-weight: 800;
   line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.footer {
+.prompt::before {
+  content: "INPUT> ";
+  color: rgba(118, 255, 138, 0.76);
+}
+
+.terminal-footer {
+  position: relative;
+  z-index: 1;
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.18);
-  color: rgba(238, 247, 255, 0.72);
-  font-size: 0.82rem;
-  font-weight: 700;
+  padding: 9px 13px;
+  border-top: 1px solid rgba(118, 255, 138, 0.32);
+  background: rgba(0, 0, 0, 0.32);
+  color: rgba(215, 255, 215, 0.72);
+  font-size: 0.78rem;
+  font-weight: 850;
   text-transform: lowercase;
 }
 
-.footer span {
+.terminal-footer span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.window.flash {
-  animation: flash-in 220ms ease-out;
+.terminal.flash {
+  animation: terminal-flash 210ms ease-out;
 }
 
-@keyframes flash-in {
+.window.flash {
+  animation: terminal-flash 210ms ease-out;
+}
+
+@keyframes terminal-flash {
   from {
-    transform: translateY(10px) scale(0.985);
-    filter: brightness(1.28);
+    transform: translateY(8px) scale(0.988);
+    filter: brightness(1.28) saturate(1.08);
   }
   to {
     transform: translateY(0) scale(1);
-    filter: brightness(1);
+    filter: brightness(1) saturate(1);
   }
 }
 
@@ -213,8 +254,8 @@ body {
     padding: 0 24px 32px;
   }
 
-  .window {
-    width: min(760px, 92vw);
+  .terminal {
+    width: min(780px, 92vw);
   }
 
   .command-hint {
