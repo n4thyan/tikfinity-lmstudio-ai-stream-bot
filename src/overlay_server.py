@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from aiohttp import web
+from aiohttp.client_exceptions import ClientConnectionResetError
 
 
 LOGGER = logging.getLogger(__name__)
@@ -55,16 +56,16 @@ async def _events(request: web.Request) -> web.StreamResponse:
             "Access-Control-Allow-Origin": "*",
         },
     )
-    await response.prepare(request)
 
     try:
+        await response.prepare(request)
         await response.write(b": connected\n\n")
         while True:
             event = await queue.get()
             payload = json.dumps(event, ensure_ascii=False)
             await response.write(f"data: {payload}\n\n".encode("utf-8"))
-    except (asyncio.CancelledError, ConnectionResetError):
-        raise
+    except (asyncio.CancelledError, ConnectionResetError, ClientConnectionResetError, BrokenPipeError):
+        LOGGER.debug("Overlay SSE client disconnected normally.")
     except Exception as exc:  # noqa: BLE001
         LOGGER.debug("Overlay SSE client disconnected: %s", exc)
     finally:
