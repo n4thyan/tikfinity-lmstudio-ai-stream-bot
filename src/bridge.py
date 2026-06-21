@@ -152,8 +152,13 @@ class StreamBridge:
         print(f"Demo mode using {mode}.")
         print("Type messages like: !ask are you alive")
         print("Other useful commands: !help, !status, !lore, !mood confused")
+        print("Press Ctrl+C to stop.")
         while True:
-            line = await asyncio.to_thread(input, "> ")
+            try:
+                line = await asyncio.to_thread(input, "> ")
+            except EOFError:
+                print("\nInput closed. Bridge stopped.")
+                return
             await self.process_chat_message("demo_user", line, platform="demo")
 
     async def run_platform(self, platform: str | None = None) -> None:
@@ -527,7 +532,10 @@ async def async_main() -> None:
 
 
 def main() -> None:
-    asyncio.run(async_main())
+    try:
+        asyncio.run(async_main())
+    except KeyboardInterrupt:
+        print("\nBridge stopped.")
 
 
 if __name__ == "__main__":
