@@ -8,7 +8,7 @@ The aim is to let TikTok chat interact with a small local LLM character while ke
 
 This project is a first-pass MVP for a 24/7 style TikTok livestream where chat can talk to a local potato AI character.
 
-Planned stream flow:
+Stream flow:
 
 ```text
 TikTok LIVE chat
@@ -30,7 +30,8 @@ TikTok LIVE chat
 - Message and AI-output filtering hooks
 - Per-user cooldowns
 - Prompt queue limits
-- LM Studio client interface placeholder ready for final local API wiring
+- Working LM Studio client using the local OpenAI-compatible API
+- `--test-lmstudio` health check for local model testing
 - Local OBS browser overlay using Server-Sent Events
 - Optional browser text-to-speech in the overlay
 - Discord webhook logging for accepted, blocked, error, and status events
@@ -53,22 +54,46 @@ This is not a moderation replacement and it should not be treated as fully unatt
 py -m pip install -r requirements.txt
 ```
 
-7. Run a local demo without Tikfinity:
+7. Test LM Studio first:
+
+```powershell
+py -m src.bridge --test-lmstudio
+```
+
+8. Run a local demo without Tikfinity:
 
 ```powershell
 py -m src.bridge --demo
 ```
 
-8. Add this as an OBS Browser Source:
+9. Add this as an OBS Browser Source:
 
 ```text
 http://127.0.0.1:8787/overlay
 ```
 
-9. Once the demo works, set your Tikfinity WebSocket URL in `.env` and run:
+10. Once the demo works, set your Tikfinity WebSocket URL in `.env` and run:
 
 ```powershell
 py -m src.bridge
+```
+
+## LM Studio config
+
+The default `.env.example` assumes LM Studio is running locally on port `1234`:
+
+```env
+LMSTUDIO_BASE_URL=http://127.0.0.1:1234/v1
+LMSTUDIO_MODEL=local-model
+LMSTUDIO_TIMEOUT_SECONDS=45
+LMSTUDIO_TEMPERATURE=0.8
+LMSTUDIO_MAX_TOKENS=120
+```
+
+Set `LMSTUDIO_MODEL` to the model ID shown by LM Studio. You can check visible model IDs with:
+
+```powershell
+py -m src.bridge --test-lmstudio
 ```
 
 ## Recommended small models
@@ -117,12 +142,12 @@ Safe usernames can be read on stream. Risky usernames are cleaned or replaced wi
 
 ## Repository status
 
-This is an early MVP scaffold. The first goal is to get one loop working:
+This is an early MVP, but the basic loop is now wired:
 
 ```text
-Tikfinity message -> bridge -> LM Studio reply -> OBS overlay -> Discord log
+bridge -> LM Studio reply -> output filter -> OBS overlay -> Discord log
 ```
 
-The main remaining task is replacing the temporary LM Studio client placeholder after local testing confirms the exact model name and endpoint on your PC.
+The next important task is local hardware testing on the actual stream PC: LM Studio model speed, OBS load, Tikfinity payload shape, TTS behaviour, and filter strictness.
 
 After that, the next upgrades are gifts, likes, mood changes, stream events, better filters, and a nicer retro overlay.
