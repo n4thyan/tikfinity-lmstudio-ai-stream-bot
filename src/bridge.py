@@ -37,6 +37,9 @@ class StreamBridge:
         self.llm = LMStudioClient(
             base_url=settings.lmstudio_base_url,
             model=settings.lmstudio_model,
+            timeout_seconds=settings.lmstudio_timeout_seconds,
+            temperature=settings.lmstudio_temperature,
+            max_tokens=settings.lmstudio_max_tokens,
         )
         self.overlay = OverlayBroadcaster()
         self.queue: asyncio.Queue[ChatCommand] = asyncio.Queue(maxsize=settings.queue_limit)
@@ -61,6 +64,31 @@ class StreamBridge:
         )
         await self.discord.status(f"Bridge started. Overlay: {self.settings.overlay_url}")
         asyncio.create_task(self._worker())
+
+    async def test_lmstudio(self) -> None:
+        """Check LM Studio connectivity without starting Tikfinity or OBS."""
+        print(f"Checking LM Studio at {self.settings.lmstudio_base_url}")
+        models = await self.llm.list_models()
+        if models:
+            print("Models visible from LM Studio:")
+            for model in models:
+                marker = " <= configured" if model == self.settings.lmstudio_model else ""
+                print(f"- {model}{marker}")
+            if self.settings.lmstudio_model not in models:
+                print(f"Warning: LMSTUDIO_MODEL is set to '{self.settings.lmstudio_model}', but that exact ID was not listed.")
+        else:
+            print("LM Studio responded, but no model IDs were listed.")
+
+        reply = await self.llm.chat(
+            self.personality,
+            "Public viewer name: local_test\nCurrent mood: normal\nCommand: ask\nViewer message: Say hello to the stream in one short sentence.",
+        )
+        filtered = filter_ai_output(reply, self.safety, self.settings.max_reply_chars)
+        if not filtered.allowed:
+            print(f"LM Studio replied, but the local output filter blocked it: {filtered.reason}")
+            return
+        print("Test reply:")
+        print(filtered.text)
 
     async def run_demo(self) -> None:
         await self.start()
@@ -250,7 +278,7 @@ def extract_comment_payload(payload: dict[str, Any]) -> tuple[str, str] | None:
 
     event_name = str(payload.get("event") or payload.get("type") or payload.get("eventName") or "").lower()
     if event_name and not any(word in event_name for word in ("chat", "comment", "message")):
-        pass
+        LOGGER.debug("Payload event did not look like a chat event: %s", event_name)
 
     message_keys = ("comment", "commentText", "message", "text", "content")
     user_keys = ("uniqueId", "nickname", "username", "displayName", "userId")
@@ -293,13 +321,16 @@ def configure_logging(level: str) -> None:
 async def async_main() -> None:
     parser = argparse.ArgumentParser(description="Tikfinity to LM Studio stream bridge")
     parser.add_argument("--demo", action="store_true", help="Run without Tikfinity and read commands from stdin")
+    parser.add_argument("--test-lmstudio", action="store_true", help="Check the local LM Studio server and print one reply")
     args = parser.parse_args()
 
     settings = load_settings()
     configure_logging(settings.log_level)
     bridge = StreamBridge(settings)
 
-    if args.demo:
+    if args.test_lmstudio:
+        await bridge.test_lmstudio()
+    elif args.demo:
         await bridge.run_demo()
     else:
         await bridge.run_tikfinity()
