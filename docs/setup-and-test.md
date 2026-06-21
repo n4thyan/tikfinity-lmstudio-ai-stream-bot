@@ -7,16 +7,22 @@ Use this checklist before trying a real TikTok LIVE run.
 ```powershell
 git clone https://github.com/n4thyan/tikfinity-lmstudio-ai-stream-bot.git
 cd tikfinity-lmstudio-ai-stream-bot
+.\scripts\windows-setup.ps1
+```
+
+Manual install, if you do not want to use the helper script:
+
+```powershell
 copy .env.example .env
 py -m pip install -r requirements-dev.txt
 ```
 
 ## 2. Run the setup doctor
 
-This checks required files, important `.env` values, the OBS overlay URL, Discord status, and LM Studio connectivity.
+This checks required files, important `.env` values, the OBS overlay URL, Discord status, pause state, and LM Studio connectivity.
 
 ```powershell
-py -m src.doctor
+.\.venv\Scripts\python.exe -m src.doctor
 ```
 
 It is OK if LM Studio fails here before you have started the LM Studio server. Fix the easy file/config warnings first, then come back to LM Studio after step 5.
@@ -26,7 +32,13 @@ It is OK if LM Studio fails here before you have started the LM Studio server. F
 This checks the browser source first, with no Tikfinity and no model involved.
 
 ```powershell
-py -m src.bridge --test-overlay
+.\scripts\start-overlay-test.ps1
+```
+
+Equivalent manual command:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.bridge --test-overlay
 ```
 
 Add this to OBS as a Browser Source:
@@ -46,12 +58,20 @@ Expected result:
 This checks command parsing, filters, cooldowns, queueing, Discord logging, and the OBS overlay.
 
 ```powershell
-py -m src.bridge --demo --fake-llm
+.\scripts\start-fake-demo.ps1
+```
+
+Equivalent manual command:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.bridge --demo --fake-llm
 ```
 
 Try:
 
 ```text
+!help
+!status
 !ask are you alive
 !lore
 !mood dramatic
@@ -63,6 +83,7 @@ Expected result:
 
 - OBS updates after each accepted command.
 - Replies appear even though LM Studio is not running.
+- `!help` and `!status` work without using the model.
 - Discord receives logs if `DISCORD_WEBHOOK_URL` is set.
 
 ## 5. Start LM Studio
@@ -84,7 +105,7 @@ LMSTUDIO_BASE_URL=http://127.0.0.1:1234/v1
 ## 6. Find the exact model ID
 
 ```powershell
-py -m src.bridge --test-lmstudio
+.\.venv\Scripts\python.exe -m src.bridge --test-lmstudio
 ```
 
 If the configured model ID is wrong, the command prints the model IDs LM Studio can see. Copy the exact ID into `.env`:
@@ -98,18 +119,26 @@ Run the check again until it prints a test reply.
 You can also rerun the full doctor after this:
 
 ```powershell
-py -m src.doctor
+.\.venv\Scripts\python.exe -m src.doctor
 ```
 
 ## 7. Test the full local demo with LM Studio
 
 ```powershell
-py -m src.bridge --demo
+.\scripts\start-lmstudio-demo.ps1
+```
+
+Equivalent manual command:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.bridge --demo
 ```
 
 Try:
 
 ```text
+!help
+!status
 !ask say hello to TikTok chat
 !roast your own tiny CPU
 !lore
@@ -123,12 +152,41 @@ Expected result:
 - Output is short enough for the stream.
 - Replies are logged to Discord if enabled.
 
-## 8. Check Tikfinity payloads before enabling the bot
+## 8. Test the local pause file
+
+The bridge can be paused by creating `config/PAUSE_STREAM.txt`. This is a local safety control for testing or stopping new chat replies without closing OBS.
+
+Pause:
+
+```powershell
+.\scripts\pause-bridge.ps1
+```
+
+Resume:
+
+```powershell
+.\scripts\resume-bridge.ps1
+```
+
+Expected result:
+
+- While paused, normal chat commands are ignored.
+- `!help` and `!status` still work.
+- `!status` reports `paused`.
+- Removing the pause file lets replies resume.
+
+## 9. Check Tikfinity payloads before enabling the bot
 
 Open Tikfinity and connect it to your TikTok LIVE session. Then run:
 
 ```powershell
-py -m src.bridge --debug-tikfinity
+.\scripts\start-tikfinity-debug.ps1
+```
+
+Equivalent manual command:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.bridge --debug-tikfinity
 ```
 
 Send a normal chat message in TikTok LIVE.
@@ -140,10 +198,16 @@ Expected result:
 
 If parsed chat says `no chat message detected`, save the raw payload and update `extract_comment_payload()` in `src/bridge.py` to match the shape Tikfinity is sending.
 
-## 9. Run with Tikfinity
+## 10. Run with Tikfinity
 
 ```powershell
-py -m src.bridge
+.\scripts\start-live-bridge.ps1
+```
+
+Equivalent manual command:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.bridge
 ```
 
 Expected result:
@@ -153,7 +217,7 @@ Expected result:
 - The overlay updates when viewers use commands.
 - Discord receives accepted, blocked, reply, and error logs depending on `.env` settings.
 
-## 10. Basic stream safety checks
+## 11. Basic stream safety checks
 
 Before leaving it running for a long session:
 
@@ -165,7 +229,7 @@ Before leaving it running for a long session:
 - Check Discord logs from your phone.
 - Keep the stream account open on your phone for emergency moderation.
 
-## 11. Recommended first-run settings
+## 12. Recommended first-run settings
 
 For the first real test, use conservative values:
 
