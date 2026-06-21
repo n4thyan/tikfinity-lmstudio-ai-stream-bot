@@ -32,10 +32,13 @@ TikTok LIVE chat
 - Prompt queue limits
 - Working LM Studio client using the local OpenAI-compatible API
 - `--test-lmstudio` health check for local model testing
+- `--test-overlay` mode for testing OBS without Tikfinity or LM Studio
+- `--demo --fake-llm` mode for testing the bridge without LM Studio
+- `--debug-tikfinity` mode for printing raw Tikfinity payloads before enabling the bot
 - Local OBS browser overlay using Server-Sent Events
 - Optional browser text-to-speech in the overlay
 - Discord webhook logging for accepted, blocked, error, and status events
-- Basic pytest coverage for filters, command parsing, and LM Studio response parsing
+- Basic pytest coverage for filters, command parsing, Tikfinity extraction, and LM Studio response parsing
 - GitHub Actions workflow for compile and test checks
 - `.env.example` config so secrets are not committed
 
@@ -56,29 +59,49 @@ This is not a moderation replacement and it should not be treated as fully unatt
 py -m pip install -r requirements.txt
 ```
 
-7. Test LM Studio first:
+7. Test the OBS overlay first:
 
 ```powershell
-py -m src.bridge --test-lmstudio
+py -m src.bridge --test-overlay
 ```
 
-8. Run a local demo without Tikfinity:
-
-```powershell
-py -m src.bridge --demo
-```
-
-9. Add this as an OBS Browser Source:
+Add this as an OBS Browser Source:
 
 ```text
 http://127.0.0.1:8787/overlay
 ```
 
-10. Once the demo works, set your Tikfinity WebSocket URL in `.env` and run:
+8. Test the bridge without LM Studio:
+
+```powershell
+py -m src.bridge --demo --fake-llm
+```
+
+9. Test LM Studio:
+
+```powershell
+py -m src.bridge --test-lmstudio
+```
+
+10. Run a local demo using LM Studio:
+
+```powershell
+py -m src.bridge --demo
+```
+
+11. Once the demo works, debug Tikfinity's payload shape:
+
+```powershell
+py -m src.bridge --debug-tikfinity
+```
+
+12. When the payload parses correctly, run the full bridge:
 
 ```powershell
 py -m src.bridge
 ```
+
+For the full setup flow, see [`docs/setup-and-test.md`](docs/setup-and-test.md).
 
 ## LM Studio config
 
@@ -142,6 +165,30 @@ safe_username = cleaned public name, used for LM Studio, OBS, and TTS
 
 Safe usernames can be read on stream. Risky usernames are cleaned or replaced with a generic viewer label.
 
+The browser TTS currently speaks the AI reply only, not the raw username or raw prompt.
+
+## Useful commands
+
+```powershell
+# Overlay only, no Tikfinity, no LM Studio
+py -m src.bridge --test-overlay
+
+# Local demo with built-in fake replies
+py -m src.bridge --demo --fake-llm
+
+# Check LM Studio and print visible model IDs
+py -m src.bridge --test-lmstudio
+
+# Local demo with LM Studio
+py -m src.bridge --demo
+
+# Print raw Tikfinity payloads and parsed chat results
+py -m src.bridge --debug-tikfinity
+
+# Full Tikfinity -> LM Studio -> OBS run
+py -m src.bridge
+```
+
 ## Development checks
 
 Install dev dependencies:
@@ -166,10 +213,10 @@ GitHub Actions also runs these checks on pushes and pull requests.
 
 ## Repository status
 
-This is an early MVP, but the basic loop is now wired:
+This is still an early MVP, but the setup/test path is now split into safe stages:
 
 ```text
-bridge -> LM Studio reply -> output filter -> OBS overlay -> Discord log
+overlay test -> fake bridge demo -> LM Studio test -> LM Studio demo -> Tikfinity debug -> full run
 ```
 
 The next important task is local hardware testing on the actual stream PC: LM Studio model speed, OBS load, Tikfinity payload shape, TTS behaviour, and filter strictness.
