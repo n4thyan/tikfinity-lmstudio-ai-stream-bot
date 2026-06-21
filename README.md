@@ -2,7 +2,7 @@
 
 A local TikTok LIVE experiment using Tikfinity, LM Studio, OBS, and Discord webhooks.
 
-The aim is to let TikTok chat interact with a small local LLM character while keeping the stream manageable through username sanitisation, message filtering, output filtering, cooldowns, queue limits, and Discord logging.
+The aim is to let TikTok chat interact with a small local LLM character while keeping the stream manageable through username sanitisation, message filtering, output filtering, cooldowns, queue limits, a local pause file, and Discord logging.
 
 ## What this is
 
@@ -25,11 +25,12 @@ TikTok LIVE chat
 ## Current MVP features
 
 - Tikfinity WebSocket listener
-- `!ask`, `!roast`, `!lore`, `!mood`, and `!reset` command parsing
+- `!ask`, `!roast`, `!lore`, `!mood`, `!reset`, `!help`, and `!status` command parsing
 - Separate username sanitising layer
 - Message and AI-output filtering hooks
 - Per-user cooldowns
 - Prompt queue limits
+- Local pause file support using `config/PAUSE_STREAM.txt`
 - Working LM Studio client using the local OpenAI-compatible API
 - `py -m src.doctor` setup report for first-run troubleshooting
 - `--test-lmstudio` health check for local model testing
@@ -41,7 +42,7 @@ TikTok LIVE chat
 - Discord webhook logging for accepted, blocked, error, and status events
 - Basic pytest coverage for filters, command parsing, Tikfinity extraction, and LM Studio response parsing
 - GitHub Actions workflow for compile and test checks
-- Windows setup helper script
+- Windows setup and run helper scripts
 - `.env.example` config so secrets are not committed
 
 ## What this is not
@@ -56,7 +57,7 @@ This is not a moderation replacement and it should not be treated as fully unatt
 4. Start the LM Studio local server from the Developer tab.
 5. Clone the repo and enter the folder.
 
-Optional Windows helper:
+Windows helper:
 
 ```powershell
 .\scripts\windows-setup.ps1
@@ -72,13 +73,13 @@ py -m pip install -r requirements.txt
 6. Run the setup doctor:
 
 ```powershell
-py -m src.doctor
+.\.venv\Scripts\python.exe -m src.doctor
 ```
 
 7. Test the OBS overlay:
 
 ```powershell
-py -m src.bridge --test-overlay
+.\scripts\start-overlay-test.ps1
 ```
 
 Add this as an OBS Browser Source:
@@ -90,34 +91,56 @@ http://127.0.0.1:8787/overlay
 8. Test the bridge without LM Studio:
 
 ```powershell
-py -m src.bridge --demo --fake-llm
+.\scripts\start-fake-demo.ps1
 ```
 
 9. Test LM Studio:
 
 ```powershell
-py -m src.bridge --test-lmstudio
+.\.venv\Scripts\python.exe -m src.bridge --test-lmstudio
 ```
 
 10. Run a local demo using LM Studio:
 
 ```powershell
-py -m src.bridge --demo
+.\scripts\start-lmstudio-demo.ps1
 ```
 
 11. Once the demo works, debug Tikfinity's payload shape:
 
 ```powershell
-py -m src.bridge --debug-tikfinity
+.\scripts\start-tikfinity-debug.ps1
 ```
 
 12. When the payload parses correctly, run the full bridge:
 
 ```powershell
-py -m src.bridge
+.\scripts\start-live-bridge.ps1
 ```
 
 For the full setup flow, see [`docs/setup-and-test.md`](docs/setup-and-test.md).
+
+## Local pause control
+
+The bridge checks for this file:
+
+```text
+config/PAUSE_STREAM.txt
+```
+
+Create it to pause new chat replies:
+
+```powershell
+.\scripts\pause-bridge.ps1
+```
+
+Remove it to resume:
+
+```powershell
+.\scripts\resume-bridge.ps1
+```
+
+While paused, `!help` and `!status` still work so the overlay can show that the bridge is paused.
 
 ## LM Studio config
 
@@ -134,7 +157,7 @@ LMSTUDIO_MAX_TOKENS=120
 Set `LMSTUDIO_MODEL` to the model ID shown by LM Studio. You can check visible model IDs with:
 
 ```powershell
-py -m src.bridge --test-lmstudio
+.\.venv\Scripts\python.exe -m src.bridge --test-lmstudio
 ```
 
 ## Recommended small models
@@ -151,24 +174,7 @@ Good first targets:
 
 The intended rule is soft chaos with hard account-protection limits.
 
-Allowed style:
-
-- chat teasing the fictional AI
-- silly commands
-- angry moods
-- nonsense prompts
-- fictional robot shutdown jokes
-
-Blocked style:
-
-- protected-class hate
-- explicit slur bait
-- sexual explicit content
-- doxxing or personal data
-- real-world threats
-- graphic harm bait
-- spam walls
-- obvious ban bait
+The system should allow normal stream banter, silly commands, mood changes, and fictional AI character jokes, while filtering platform-risk content, private personal data, spam walls, and obvious stream-bait attempts.
 
 ## Username handling
 
@@ -183,32 +189,49 @@ Safe usernames can be read on stream. Risky usernames are cleaned or replaced wi
 
 The browser TTS currently speaks the AI reply only, not the raw username or raw prompt.
 
-## Useful commands
+## Useful chat commands
+
+```text
+!help
+!status
+!ask <message>
+!roast <topic>
+!lore
+!mood normal
+!mood confused
+!reset
+```
+
+## Useful local commands
 
 ```powershell
 # Setup helper on Windows
 .\scripts\windows-setup.ps1
 
 # Setup report
-py -m src.doctor
+.\.venv\Scripts\python.exe -m src.doctor
 
 # Overlay only, no Tikfinity, no LM Studio
-py -m src.bridge --test-overlay
+.\scripts\start-overlay-test.ps1
 
 # Local demo with built-in fake replies
-py -m src.bridge --demo --fake-llm
+.\scripts\start-fake-demo.ps1
 
 # Check LM Studio and print visible model IDs
-py -m src.bridge --test-lmstudio
+.\.venv\Scripts\python.exe -m src.bridge --test-lmstudio
 
 # Local demo with LM Studio
-py -m src.bridge --demo
+.\scripts\start-lmstudio-demo.ps1
 
 # Print raw Tikfinity payloads and parsed chat results
-py -m src.bridge --debug-tikfinity
+.\scripts\start-tikfinity-debug.ps1
 
 # Full Tikfinity -> LM Studio -> OBS run
-py -m src.bridge
+.\scripts\start-live-bridge.ps1
+
+# Pause / resume chat replies
+.\scripts\pause-bridge.ps1
+.\scripts\resume-bridge.ps1
 ```
 
 ## Development checks
