@@ -22,6 +22,17 @@ TikTok / YouTube / Kick chat
   -> Discord webhook logs
 ```
 
+You can also run it in local showcase mode without any platform connected:
+
+```text
+manual demo prompts
+  -> Python bridge
+  -> LM Studio local API
+  -> terminal-style OBS overlay
+```
+
+This is useful for testing, recording clips, tuning the character, or building the stream scene before connecting real chat.
+
 ## Supported chat sources
 
 | Platform | Adapter name | Status | Notes |
@@ -62,8 +73,9 @@ kick-webhook
 - `--test-youtube` health check for YouTube live chat ID discovery
 - `--test-overlay` mode for testing OBS without a chat platform or LM Studio
 - `--demo --fake-llm` mode for testing the bridge without LM Studio
+- Local showcase/demo mode with real LM Studio replies
 - Platform debug modes for Tikfinity, YouTube, and Kick webhook payloads
-- Local OBS browser overlay using Server-Sent Events
+- Local OBS terminal-style browser overlay using Server-Sent Events
 - Optional browser text-to-speech in the overlay
 - Discord webhook logging for accepted, blocked, error, and status events
 - Basic pytest coverage for filters, command parsing, platform extraction, and LM Studio response parsing
@@ -132,11 +144,13 @@ http://127.0.0.1:8787/overlay
 .\.venv\Scripts\python.exe -m src.bridge --test-lmstudio
 ```
 
-11. Run a local demo using LM Studio:
+11. Run a local showcase/demo using LM Studio:
 
 ```powershell
 .\scripts\start-lmstudio-demo.ps1
 ```
+
+This lets you type prompts manually in PowerShell and see the real local model reply in OBS without Tikfinity, YouTube, or Kick connected.
 
 12. Debug your chosen platform:
 
@@ -164,6 +178,33 @@ http://127.0.0.1:8787/overlay
 ```
 
 For the full setup flow, see [`docs/setup-and-test.md`](docs/setup-and-test.md).
+
+## Local showcase mode
+
+For testing or clip recording without live chat, run:
+
+```powershell
+.\scripts\start-lmstudio-demo.ps1
+```
+
+Then type commands into PowerShell:
+
+```text
+!ask are you alive
+!mood confused
+!ask why are you trapped in this computer
+!status
+```
+
+This mode is the safest place to tune:
+
+- model choice
+- personality prompt
+- overlay size and placement
+- response length
+- filters
+- Discord logging
+- CPU/RAM load
 
 ## Platform config
 
@@ -251,6 +292,28 @@ Set `LMSTUDIO_MODEL` to the model ID shown by LM Studio. You can check visible m
 ```powershell
 .\.venv\Scripts\python.exe -m src.bridge --test-lmstudio
 ```
+
+## Personality prompt
+
+The stream character prompt lives in:
+
+```text
+config/bot_personality.example.txt
+```
+
+Edit this file to change PotatoBrain's style. Keeping the prompt in the project is better than relying on LM Studio global settings because it stays versioned with the stream setup.
+
+## Discord logging
+
+Discord webhook logging is optional. It is useful for checking prompts, blocked messages, model replies, and errors from another screen or your phone.
+
+Setup guide:
+
+```text
+docs/discord-webhook.md
+```
+
+The webhook URL should only be placed in your local `.env` file. Never commit it to GitHub.
 
 ## Recommended small models
 
@@ -361,6 +424,10 @@ This is still an early MVP, but the setup/test path is now split into safe stage
 doctor -> overlay test -> fake bridge demo -> LM Studio test -> LM Studio demo -> platform debug -> full run
 ```
 
-The next important task is local hardware testing on the actual stream PC: LM Studio model speed, OBS load, platform payloads, TTS behaviour, and filter strictness.
+The main tested local path is now:
 
-After that, the next upgrades are gifts, likes, mood changes, stream events, better filters, and a nicer retro overlay.
+```text
+LM Studio -> bridge -> filters -> terminal OBS overlay
+```
+
+The next important tasks are live-platform payload testing, Discord logging test, longer runtime testing, TTS behaviour, filter strictness, and stream event support.
