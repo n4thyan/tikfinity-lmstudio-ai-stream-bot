@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+import sys
 from pathlib import Path
 
-from .config import BASE_DIR, Settings
+from .config import BASE_DIR, Settings, load_settings
 from .lmstudio_client import LMStudioClient, LMStudioError
 
 
@@ -78,3 +80,11 @@ def _check_file(path: Path, label: str) -> int:
         return 0
     print(f"[FAIL] {label} missing: {path}")
     return 1
+
+
+def main() -> None:
+    raise SystemExit(asyncio.run(run_doctor(load_settings())))
+
+
+if __name__ == "__main__":
+    main()
