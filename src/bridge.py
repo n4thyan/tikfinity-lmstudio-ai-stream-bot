@@ -19,6 +19,7 @@ from .overlay_server import OverlayBroadcaster, start_overlay_server
 
 
 LOGGER = logging.getLogger(__name__)
+PAUSE_NOTICE_SECONDS = 15
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class StreamBridge:
         self.queue: asyncio.Queue[ChatCommand] = asyncio.Queue(maxsize=settings.queue_limit)
         self.last_user_seen: dict[str, float] = {}
         self.last_global_seen = 0.0
+        self.last_pause_notice = 0.0
         self.mood = "normal"
 
     async def start(self) -> None:
@@ -125,6 +127,7 @@ class StreamBridge:
         mode = "fake local replies" if self.use_fake_llm else "LM Studio replies"
         print(f"Demo mode using {mode}.")
         print("Type messages like: !ask are you alive")
+        print("Other useful commands: !help, !status, !lore, !mood confused")
         while True:
             line = await asyncio.to_thread(input, "> ")
             await self.process_chat_message("demo_user", line)
@@ -183,8 +186,12 @@ class StreamBridge:
 
         command, prompt = parsed
         safe_user = sanitise_username(raw_username, self.safety)
-        chat_filter = filter_chat_text(prompt, self.safety, self.settings.max_prompt_chars)
 
+        if self._is_paused() and command not in {"help", "status"}:
+            await self._publish_pause_notice()
+            return
+
+        chat_filter = filter_chat_text(prompt, self.safety, self.settings.max_prompt_chars)
         if not chat_filter.allowed:
             if self.settings.discord_log_blocked:
                 await self.discord.blocked(raw_username, chat_filter.reason, message)
@@ -199,6 +206,12 @@ class StreamBridge:
         self.last_global_seen = now
         self.last_user_seen[raw_username] = now
 
+        if command == "help":
+            await self._publish_help(safe_user.text)
+            return
+        if command == "status":
+            await self._publish_status(safe_user.text)
+            return
         if command == "mood":
             await self._set_mood(safe_user.text, chat_filter.text)
             return
@@ -216,6 +229,41 @@ class StreamBridge:
             return
         if self.settings.discord_log_accepted:
             await self.discord.accepted(raw_username, safe_user.text, chat_filter.text)
+
+    async def _publish_help(self, safe_username: str) -> None:
+        text = "Commands: !ask <message>, !roast <topic>, !lore, !mood normal/angry/scared/sad/happy/confused/dramatic, !status, !reset."
+        await self._publish_local_reply(safe_username, "!help", text, speak=False)
+
+    async def _publish_status(self, safe_username: str) -> None:
+        mode = "fake local replies" if self.use_fake_llm else "LM Studio"
+        pause_state = "paused" if self._is_paused() else "live"
+        text = f"Status: {pause_state}. Mood: {self.mood}. Queue: {self.queue.qsize()}/{self.settings.queue_limit}. Brain: {mode}."
+        await self._publish_local_reply(safe_username, "!status", text, speak=False)
+
+    async def _publish_local_reply(self, safe_username: str, prompt: str, reply_text: str, *, speak: bool) -> None:
+        await self.overlay.publish(
+            {
+                "type": "reply",
+                "username": safe_username,
+                "prompt": prompt,
+                "reply": reply_text,
+                "mood": self.mood,
+                "tts": speak,
+                "ttsEnabled": self.settings.overlay_tts_enabled,
+            }
+        )
+        if self.settings.discord_log_replies:
+            await self.discord.reply(safe_username, prompt, reply_text)
+
+    async def _publish_pause_notice(self) -> None:
+        now = time.monotonic()
+        if now - self.last_pause_notice < PAUSE_NOTICE_SECONDS:
+            return
+        self.last_pause_notice = now
+        await self.overlay.publish({"type": "status", "text": "Bridge paused by local pause file.", "tts": False})
+
+    def _is_paused(self) -> bool:
+        return self.settings.pause_file.exists()
 
     async def _set_mood(self, safe_username: str, requested_mood: str) -> None:
         allowed_moods = {"normal", "angry", "scared", "sad", "happy", "confused", "dramatic"}
@@ -238,7 +286,7 @@ class StreamBridge:
                 reply = await self._generate_reply(command)
                 filtered_reply = filter_ai_output(reply, self.safety, self.settings.max_reply_chars)
                 if not filtered_reply.allowed:
-                    filtered_reply_text = "That reply got eaten by the stream goblin."
+                    filtered_reply_text = "That reply was blocked by the local output filter."
                 else:
                     filtered_reply_text = filtered_reply.text
 
@@ -248,7 +296,7 @@ class StreamBridge:
             except Exception as exc:  # noqa: BLE001
                 LOGGER.exception("Reply generation failed")
                 await self.discord.error(f"Reply generation failed: {exc}")
-                await self._publish_reply(command, "My tiny local brain crashed. Try again in a minute.")
+                await self._publish_reply(command, "Local reply generation failed. Try again soon.")
             finally:
                 self.queue.task_done()
 
@@ -271,7 +319,7 @@ class StreamBridge:
 
         command_hint = {
             "ask": "Answer the viewer in character.",
-            "roast": "Give a mild fictional roast of the AI or the situation, not the real person.",
+            "roast": "Give a mild fictional roast of the AI or the situation.",
             "lore": "Invent one short piece of harmless lore about the AI character.",
         }.get(command.command, "Reply in character.")
 
@@ -315,14 +363,25 @@ def parse_command(message: str, prefix: str) -> tuple[str, str] | None:
         "lore": "lore",
         "mood": "mood",
         "reset": "reset",
+        "help": "help",
+        "commands": "help",
+        "status": "status",
+        "queue": "status",
     }
     if command not in aliases:
         return None
-    if aliases[command] in {"ask", "roast"} and not rest:
+    normalised = aliases[command]
+    if normalised in {"ask", "roast"} and not rest:
         return None
-    if aliases[command] == "lore" and not rest:
+    if normalised == "lore" and not rest:
         rest = "Tell the stream one tiny piece of your backstory."
-    return aliases[command], rest
+    if normalised == "help" and not rest:
+        rest = "Show the available stream commands."
+    if normalised == "status" and not rest:
+        rest = "Show the bridge status."
+    if normalised == "reset" and not rest:
+        rest = "Reset the stream mood."
+    return normalised, rest
 
 
 def extract_comment_payload(payload: dict[str, Any]) -> tuple[str, str] | None:
