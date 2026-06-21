@@ -31,6 +31,7 @@ TikTok LIVE chat
 - Per-user cooldowns
 - Prompt queue limits
 - Working LM Studio client using the local OpenAI-compatible API
+- `py -m src.doctor` setup report for first-run troubleshooting
 - `--test-lmstudio` health check for local model testing
 - `--test-overlay` mode for testing OBS without Tikfinity or LM Studio
 - `--demo --fake-llm` mode for testing the bridge without LM Studio
@@ -59,7 +60,13 @@ This is not a moderation replacement and it should not be treated as fully unatt
 py -m pip install -r requirements.txt
 ```
 
-7. Test the OBS overlay first:
+7. Run the setup doctor:
+
+```powershell
+py -m src.doctor
+```
+
+8. Test the OBS overlay:
 
 ```powershell
 py -m src.bridge --test-overlay
@@ -71,31 +78,31 @@ Add this as an OBS Browser Source:
 http://127.0.0.1:8787/overlay
 ```
 
-8. Test the bridge without LM Studio:
+9. Test the bridge without LM Studio:
 
 ```powershell
 py -m src.bridge --demo --fake-llm
 ```
 
-9. Test LM Studio:
+10. Test LM Studio:
 
 ```powershell
 py -m src.bridge --test-lmstudio
 ```
 
-10. Run a local demo using LM Studio:
+11. Run a local demo using LM Studio:
 
 ```powershell
 py -m src.bridge --demo
 ```
 
-11. Once the demo works, debug Tikfinity's payload shape:
+12. Once the demo works, debug Tikfinity's payload shape:
 
 ```powershell
 py -m src.bridge --debug-tikfinity
 ```
 
-12. When the payload parses correctly, run the full bridge:
+13. When the payload parses correctly, run the full bridge:
 
 ```powershell
 py -m src.bridge
@@ -170,6 +177,9 @@ The browser TTS currently speaks the AI reply only, not the raw username or raw 
 ## Useful commands
 
 ```powershell
+# Setup report
+py -m src.doctor
+
 # Overlay only, no Tikfinity, no LM Studio
 py -m src.bridge --test-overlay
 
@@ -216,7 +226,7 @@ GitHub Actions also runs these checks on pushes and pull requests.
 This is still an early MVP, but the setup/test path is now split into safe stages:
 
 ```text
-overlay test -> fake bridge demo -> LM Studio test -> LM Studio demo -> Tikfinity debug -> full run
+doctor -> overlay test -> fake bridge demo -> LM Studio test -> LM Studio demo -> Tikfinity debug -> full run
 ```
 
 The next important task is local hardware testing on the actual stream PC: LM Studio model speed, OBS load, Tikfinity payload shape, TTS behaviour, and filter strictness.
