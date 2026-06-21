@@ -41,6 +41,7 @@ TikTok LIVE chat
 - Discord webhook logging for accepted, blocked, error, and status events
 - Basic pytest coverage for filters, command parsing, Tikfinity extraction, and LM Studio response parsing
 - GitHub Actions workflow for compile and test checks
+- Windows setup helper script
 - `.env.example` config so secrets are not committed
 
 ## What this is not
@@ -53,20 +54,28 @@ This is not a moderation replacement and it should not be treated as fully unatt
 2. Install LM Studio.
 3. Download a small local model in LM Studio.
 4. Start the LM Studio local server from the Developer tab.
-5. Copy `.env.example` to `.env` and edit it.
-6. Install dependencies:
+5. Clone the repo and enter the folder.
+
+Optional Windows helper:
 
 ```powershell
+.\scripts\windows-setup.ps1
+```
+
+Manual install:
+
+```powershell
+copy .env.example .env
 py -m pip install -r requirements.txt
 ```
 
-7. Run the setup doctor:
+6. Run the setup doctor:
 
 ```powershell
 py -m src.doctor
 ```
 
-8. Test the OBS overlay:
+7. Test the OBS overlay:
 
 ```powershell
 py -m src.bridge --test-overlay
@@ -78,31 +87,31 @@ Add this as an OBS Browser Source:
 http://127.0.0.1:8787/overlay
 ```
 
-9. Test the bridge without LM Studio:
+8. Test the bridge without LM Studio:
 
 ```powershell
 py -m src.bridge --demo --fake-llm
 ```
 
-10. Test LM Studio:
+9. Test LM Studio:
 
 ```powershell
 py -m src.bridge --test-lmstudio
 ```
 
-11. Run a local demo using LM Studio:
+10. Run a local demo using LM Studio:
 
 ```powershell
 py -m src.bridge --demo
 ```
 
-12. Once the demo works, debug Tikfinity's payload shape:
+11. Once the demo works, debug Tikfinity's payload shape:
 
 ```powershell
 py -m src.bridge --debug-tikfinity
 ```
 
-13. When the payload parses correctly, run the full bridge:
+12. When the payload parses correctly, run the full bridge:
 
 ```powershell
 py -m src.bridge
@@ -177,6 +186,9 @@ The browser TTS currently speaks the AI reply only, not the raw username or raw 
 ## Useful commands
 
 ```powershell
+# Setup helper on Windows
+.\scripts\windows-setup.ps1
+
 # Setup report
 py -m src.doctor
 
