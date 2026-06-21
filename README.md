@@ -35,6 +35,8 @@ TikTok LIVE chat
 - Local OBS browser overlay using Server-Sent Events
 - Optional browser text-to-speech in the overlay
 - Discord webhook logging for accepted, blocked, error, and status events
+- Basic pytest coverage for filters, command parsing, and LM Studio response parsing
+- GitHub Actions workflow for compile and test checks
 - `.env.example` config so secrets are not committed
 
 ## What this is not
@@ -139,6 +141,28 @@ safe_username = cleaned public name, used for LM Studio, OBS, and TTS
 ```
 
 Safe usernames can be read on stream. Risky usernames are cleaned or replaced with a generic viewer label.
+
+## Development checks
+
+Install dev dependencies:
+
+```powershell
+py -m pip install -r requirements-dev.txt
+```
+
+Compile source:
+
+```powershell
+py -m compileall src
+```
+
+Run tests:
+
+```powershell
+py -m pytest
+```
+
+GitHub Actions also runs these checks on pushes and pull requests.
 
 ## Repository status
 
