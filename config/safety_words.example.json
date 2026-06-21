@@ -1,0 +1,28 @@
+{
+  "notes": [
+    "This public example intentionally avoids listing actual slurs or private moderation terms.",
+    "Copy this file to config/safety_words.local.json if you want a private stronger list, then set SAFETY_CONFIG_FILE in .env.",
+    "The code also applies pattern-based checks for personal data and spam-like messages."
+  ],
+  "blocked_terms": [
+    "onlyfans",
+    "porn",
+    "nazi",
+    "heil",
+    "terrorist"
+  ],
+  "soft_replace_terms": {
+    "dumbass": "dumb",
+    "wtf": "what"
+  },
+  "username_blocked_terms": [
+    "onlyfans",
+    "porn",
+    "nazi",
+    "heil"
+  ],
+  "username_soft_replace_terms": {
+    "dumbass": "dumb",
+    "wtf": "what"
+  }
+}
