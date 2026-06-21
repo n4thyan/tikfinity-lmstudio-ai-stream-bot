@@ -7,10 +7,17 @@ import logging
 import random
 import time
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any
 
-import websockets
-
+from .chat_sources import (
+    ChatMessage,
+    KickWebhookChatSource,
+    TikfinityChatSource,
+    YouTubeLiveChatSource,
+    extract_kick_webhook_message,
+    extract_tikfinity_message,
+    extract_youtube_message,
+)
 from .config import Settings, load_personality, load_settings
 from .discord_webhook import DiscordLogger
 from .filters import SafetyConfig, filter_ai_output, filter_chat_text, sanitise_username
@@ -20,6 +27,7 @@ from .overlay_server import OverlayBroadcaster, start_overlay_server
 
 LOGGER = logging.getLogger(__name__)
 PAUSE_NOTICE_SECONDS = 15
+SUPPORTED_PLATFORMS = {"tiktok", "youtube", "kick-webhook"}
 
 
 @dataclass(frozen=True)
@@ -28,6 +36,7 @@ class ChatCommand:
     safe_username: str
     command: str
     prompt: str
+    platform: str = "demo"
 
 
 class StreamBridge:
@@ -66,11 +75,11 @@ class StreamBridge:
                 "ttsEnabled": self.settings.overlay_tts_enabled,
             }
         )
-        await self.discord.status(f"Bridge started. Overlay: {self.settings.overlay_url}")
+        await self.discord.status(f"Bridge started for {self.settings.platform}. Overlay: {self.settings.overlay_url}")
         asyncio.create_task(self._worker())
 
     async def test_lmstudio(self) -> None:
-        """Check LM Studio connectivity without starting Tikfinity or OBS."""
+        """Check LM Studio connectivity without starting a chat platform or OBS."""
         print(f"Checking LM Studio at {self.settings.lmstudio_base_url}")
         models = await self.llm.list_models()
         if models:
@@ -93,6 +102,21 @@ class StreamBridge:
             return
         print("Test reply:")
         print(filtered.text)
+
+    async def test_youtube(self) -> None:
+        """Check YouTube API/chat discovery without starting the main bridge."""
+        print("Checking YouTube chat settings.")
+        source = YouTubeLiveChatSource(
+            api_key=self.settings.youtube_api_key,
+            live_chat_id=self.settings.youtube_live_chat_id,
+            video_id=self.settings.youtube_video_id,
+            poll_floor_seconds=self.settings.youtube_poll_floor_seconds,
+        )
+        chat_id = await source.resolve_live_chat_id()
+        if chat_id:
+            print(f"YouTube live chat ID ready: {chat_id}")
+        else:
+            print("No active YouTube live chat ID found. Check YOUTUBE_LIVE_CHAT_ID or YOUTUBE_VIDEO_ID.")
 
     async def test_overlay(self) -> None:
         """Run only the OBS browser overlay and publish fake events for setup testing."""
@@ -130,39 +154,83 @@ class StreamBridge:
         print("Other useful commands: !help, !status, !lore, !mood confused")
         while True:
             line = await asyncio.to_thread(input, "> ")
-            await self.process_chat_message("demo_user", line)
+            await self.process_chat_message("demo_user", line, platform="demo")
 
-    async def run_tikfinity(self) -> None:
+    async def run_platform(self, platform: str | None = None) -> None:
+        selected = (platform or self.settings.platform).strip().lower()
+        if selected not in SUPPORTED_PLATFORMS:
+            raise RuntimeError(f"Unsupported CHAT_PLATFORM '{selected}'. Use one of: {', '.join(sorted(SUPPORTED_PLATFORMS))}.")
+
         await self.start()
         while True:
             try:
-                LOGGER.info("Connecting to Tikfinity WebSocket: %s", self.settings.tikfinity_ws_url)
-                async with websockets.connect(self.settings.tikfinity_ws_url, ping_interval=20) as websocket:
-                    await self.discord.status("Connected to Tikfinity WebSocket.")
-                    async for raw_payload in websocket:
-                        await self.process_tikfinity_payload(raw_payload)
+                source = self._build_source(selected)
+                await self.discord.status(f"Connected to {selected} chat source.")
+                async for message in source.messages():
+                    await self.process_platform_message(message)
             except Exception as exc:  # noqa: BLE001
-                LOGGER.warning("Tikfinity connection problem: %s", exc)
-                await self.discord.error(f"Tikfinity connection problem: {exc}")
+                LOGGER.warning("%s chat source problem: %s", selected, exc)
+                await self.discord.error(f"{selected} chat source problem: {exc}")
                 await asyncio.sleep(5)
+
+    async def run_tikfinity(self) -> None:
+        await self.run_platform("tiktok")
+
+    async def run_youtube(self) -> None:
+        await self.run_platform("youtube")
+
+    async def run_kick_webhook(self) -> None:
+        await self.run_platform("kick-webhook")
+
+    def _build_source(self, platform: str):
+        if platform == "tiktok":
+            return TikfinityChatSource(self.settings.tikfinity_ws_url)
+        if platform == "youtube":
+            return YouTubeLiveChatSource(
+                api_key=self.settings.youtube_api_key,
+                live_chat_id=self.settings.youtube_live_chat_id,
+                video_id=self.settings.youtube_video_id,
+                poll_floor_seconds=self.settings.youtube_poll_floor_seconds,
+            )
+        if platform == "kick-webhook":
+            return KickWebhookChatSource(
+                host=self.settings.kick_webhook_host,
+                port=self.settings.kick_webhook_port,
+                path=self.settings.kick_webhook_path,
+            )
+        raise RuntimeError(f"Unsupported platform: {platform}")
 
     async def debug_tikfinity(self) -> None:
         """Print raw Tikfinity payloads and the parsed chat result without generating replies."""
+        source = TikfinityChatSource(self.settings.tikfinity_ws_url)
         print(f"Connecting to Tikfinity WebSocket: {self.settings.tikfinity_ws_url}")
         print("Debug mode only prints payloads. It does not call LM Studio or update OBS.")
-        async with websockets.connect(self.settings.tikfinity_ws_url, ping_interval=20) as websocket:
-            print("Connected. Send a TikTok LIVE chat message now.")
-            async for raw_payload in websocket:
-                text_payload = raw_payload.decode("utf-8", errors="replace") if isinstance(raw_payload, bytes) else raw_payload
-                print("\n--- raw Tikfinity payload ---")
-                print(text_payload[:2000])
-                try:
-                    payload = json.loads(text_payload)
-                except json.JSONDecodeError:
-                    print("Parsed: not JSON")
-                    continue
-                extracted = extract_comment_payload(payload)
-                print("Parsed chat:", extracted if extracted else "no chat message detected")
+        async for message in source.messages():
+            print(f"Parsed TikTok chat: @{message.raw_username}: {message.message}")
+
+    async def debug_youtube(self) -> None:
+        """Print parsed YouTube chat without generating replies."""
+        source = YouTubeLiveChatSource(
+            api_key=self.settings.youtube_api_key,
+            live_chat_id=self.settings.youtube_live_chat_id,
+            video_id=self.settings.youtube_video_id,
+            poll_floor_seconds=self.settings.youtube_poll_floor_seconds,
+        )
+        print("Debug mode only prints YouTube chat. It does not call LM Studio or update OBS.")
+        async for message in source.messages():
+            print(f"Parsed YouTube chat: @{message.raw_username}: {message.message}")
+
+    async def debug_kick_webhook(self) -> None:
+        """Run the Kick webhook receiver and print parsed chat without generating replies."""
+        source = KickWebhookChatSource(
+            host=self.settings.kick_webhook_host,
+            port=self.settings.kick_webhook_port,
+            path=self.settings.kick_webhook_path,
+        )
+        print(f"Kick webhook receiver: {self.settings.kick_webhook_url}")
+        print("Debug mode only prints Kick webhook chat. It does not call LM Studio or update OBS.")
+        async for message in source.messages():
+            print(f"Parsed Kick chat: @{message.raw_username}: {message.message}")
 
     async def process_tikfinity_payload(self, raw_payload: str | bytes) -> None:
         text_payload = raw_payload.decode("utf-8", errors="replace") if isinstance(raw_payload, bytes) else raw_payload
@@ -172,14 +240,15 @@ class StreamBridge:
             LOGGER.debug("Ignored non-JSON Tikfinity payload: %r", text_payload)
             return
 
-        extracted = extract_comment_payload(payload)
+        extracted = extract_tikfinity_message(payload)
         if extracted is None:
             return
+        await self.process_platform_message(extracted)
 
-        raw_username, message = extracted
-        await self.process_chat_message(raw_username, message)
+    async def process_platform_message(self, message: ChatMessage) -> None:
+        await self.process_chat_message(message.raw_username, message.message, platform=message.platform)
 
-    async def process_chat_message(self, raw_username: str, message: str) -> None:
+    async def process_chat_message(self, raw_username: str, message: str, *, platform: str = "demo") -> None:
         parsed = parse_command(message, self.settings.command_prefix)
         if parsed is None:
             return
@@ -194,17 +263,18 @@ class StreamBridge:
         chat_filter = filter_chat_text(prompt, self.safety, self.settings.max_prompt_chars)
         if not chat_filter.allowed:
             if self.settings.discord_log_blocked:
-                await self.discord.blocked(raw_username, chat_filter.reason, message)
+                await self.discord.blocked(f"[{platform}] {raw_username}", chat_filter.reason, message)
             return
 
         now = time.monotonic()
+        user_key = f"{platform}:{raw_username}"
         if now - self.last_global_seen < self.settings.global_cooldown_seconds:
             return
-        if now - self.last_user_seen.get(raw_username, 0.0) < self.settings.user_cooldown_seconds:
+        if now - self.last_user_seen.get(user_key, 0.0) < self.settings.user_cooldown_seconds:
             return
 
         self.last_global_seen = now
-        self.last_user_seen[raw_username] = now
+        self.last_user_seen[user_key] = now
 
         if command == "help":
             await self._publish_help(safe_user.text)
@@ -220,15 +290,15 @@ class StreamBridge:
             await self.overlay.publish({"type": "status", "text": "Mood reset to normal.", "tts": False})
             return
 
-        item = ChatCommand(raw_username, safe_user.text, command, chat_filter.text)
+        item = ChatCommand(raw_username, safe_user.text, command, chat_filter.text, platform)
         try:
             self.queue.put_nowait(item)
         except asyncio.QueueFull:
             if self.settings.discord_log_blocked:
-                await self.discord.blocked(raw_username, "queue full", message)
+                await self.discord.blocked(f"[{platform}] {raw_username}", "queue full", message)
             return
         if self.settings.discord_log_accepted:
-            await self.discord.accepted(raw_username, safe_user.text, chat_filter.text)
+            await self.discord.accepted(f"[{platform}] {raw_username}", safe_user.text, chat_filter.text)
 
     async def _publish_help(self, safe_username: str) -> None:
         text = "Commands: !ask <message>, !roast <topic>, !lore, !mood normal/angry/scared/sad/happy/confused/dramatic, !status, !reset."
@@ -237,7 +307,7 @@ class StreamBridge:
     async def _publish_status(self, safe_username: str) -> None:
         mode = "fake local replies" if self.use_fake_llm else "LM Studio"
         pause_state = "paused" if self._is_paused() else "live"
-        text = f"Status: {pause_state}. Mood: {self.mood}. Queue: {self.queue.qsize()}/{self.settings.queue_limit}. Brain: {mode}."
+        text = f"Status: {pause_state}. Platform: {self.settings.platform}. Mood: {self.mood}. Queue: {self.queue.qsize()}/{self.settings.queue_limit}. Brain: {mode}."
         await self._publish_local_reply(safe_username, "!status", text, speak=False)
 
     async def _publish_local_reply(self, safe_username: str, prompt: str, reply_text: str, *, speak: bool) -> None:
@@ -292,7 +362,7 @@ class StreamBridge:
 
                 await self._publish_reply(command, filtered_reply_text)
                 if self.settings.discord_log_replies:
-                    await self.discord.reply(command.safe_username, command.prompt, filtered_reply_text)
+                    await self.discord.reply(f"[{command.platform}] {command.safe_username}", command.prompt, filtered_reply_text)
             except Exception as exc:  # noqa: BLE001
                 LOGGER.exception("Reply generation failed")
                 await self.discord.error(f"Reply generation failed: {exc}")
@@ -308,6 +378,7 @@ class StreamBridge:
                 "prompt": command.prompt,
                 "reply": reply_text,
                 "mood": self.mood,
+                "platform": command.platform,
                 "tts": True,
                 "ttsEnabled": self.settings.overlay_tts_enabled,
             }
@@ -324,6 +395,7 @@ class StreamBridge:
         }.get(command.command, "Reply in character.")
 
         viewer_message = (
+            f"Platform: {command.platform}\n"
             f"Public viewer name: {command.safe_username}\n"
             f"Current mood: {self.mood}\n"
             f"Command: {command.command}\n"
@@ -338,11 +410,11 @@ def build_fake_reply(command: ChatCommand, mood: str) -> str:
     templates = [
         "I heard that, {user}. My potato circuits are pretending to understand.",
         "Current mood is {mood}. That means my answer is probably held together with tape.",
-        "Command received: {cmd}. The tiny brain cell has been notified.",
+        "Command received from {platform}: {cmd}. The tiny brain cell has been notified.",
         "{user}, I would answer properly but Windows just made a mysterious USB noise.",
     ]
     template = random.choice(templates)
-    return template.format(user=command.safe_username, mood=mood, cmd=command.command)
+    return template.format(user=command.safe_username, mood=mood, cmd=command.command, platform=command.platform)
 
 
 def parse_command(message: str, prefix: str) -> tuple[str, str] | None:
@@ -385,57 +457,27 @@ def parse_command(message: str, prefix: str) -> tuple[str, str] | None:
 
 
 def extract_comment_payload(payload: dict[str, Any]) -> tuple[str, str] | None:
-    """Extract a chat username/message pair from common Tikfinity payload shapes."""
-    roots = list(_iter_dicts(payload))
-    event_name = _find_first_string(roots, ("event", "type", "eventName", "name"))
-    if event_name:
-        event_name_lower = event_name.lower()
-        if any(word in event_name_lower for word in ("gift", "like", "follow", "share", "join", "subscribe")):
-            return None
-
-    message_keys = ("comment", "commentText", "message", "msg", "text", "content")
-    user_keys = ("uniqueId", "nickname", "username", "displayName", "userId", "id")
-
-    message = _find_first_string(roots, message_keys)
-    username = _find_username(roots, user_keys)
-
-    if not message:
+    """Backward-compatible Tikfinity extractor used by earlier tests."""
+    message = extract_tikfinity_message(payload)
+    if message is None:
         return None
-    return username or "unknown_viewer", message
+    return message.raw_username, message.message
 
 
-def _iter_dicts(value: Any) -> Iterable[dict[str, Any]]:
-    if isinstance(value, dict):
-        yield value
-        for child in value.values():
-            yield from _iter_dicts(child)
-    elif isinstance(value, list):
-        for child in value:
-            yield from _iter_dicts(child)
+def extract_kick_payload(payload: dict[str, Any]) -> tuple[str, str] | None:
+    """Small helper for tests and local Kick webhook payload inspection."""
+    message = extract_kick_webhook_message(payload)
+    if message is None:
+        return None
+    return message.raw_username, message.message
 
 
-def _find_first_string(roots: Iterable[dict[str, Any]], keys: tuple[str, ...]) -> str | None:
-    for root in roots:
-        for key in keys:
-            value = root.get(key)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-    return None
-
-
-def _find_username(roots: Iterable[dict[str, Any]], user_keys: tuple[str, ...]) -> str | None:
-    for root in roots:
-        user_obj = root.get("user")
-        if isinstance(user_obj, dict):
-            for key in user_keys:
-                value = user_obj.get(key)
-                if isinstance(value, str) and value.strip():
-                    return value.strip()
-        for key in user_keys:
-            value = root.get(key)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-    return None
+def extract_youtube_payload(item: dict[str, Any]) -> tuple[str, str] | None:
+    """Small helper for tests and local YouTube payload inspection."""
+    message = extract_youtube_message(item)
+    if message is None:
+        return None
+    return message.raw_username, message.message
 
 
 def configure_logging(level: str) -> None:
@@ -446,12 +488,16 @@ def configure_logging(level: str) -> None:
 
 
 async def async_main() -> None:
-    parser = argparse.ArgumentParser(description="Tikfinity to LM Studio stream bridge")
-    parser.add_argument("--demo", action="store_true", help="Run without Tikfinity and read commands from stdin")
+    parser = argparse.ArgumentParser(description="Multi-platform chat to LM Studio stream bridge")
+    parser.add_argument("--platform", choices=sorted(SUPPORTED_PLATFORMS), help="Override CHAT_PLATFORM for this run")
+    parser.add_argument("--demo", action="store_true", help="Run without a live platform and read commands from stdin")
     parser.add_argument("--fake-llm", action="store_true", help="Use built-in fake replies instead of LM Studio")
     parser.add_argument("--test-lmstudio", action="store_true", help="Check the local LM Studio server and print one reply")
+    parser.add_argument("--test-youtube", action="store_true", help="Check YouTube API settings and live chat ID discovery")
     parser.add_argument("--test-overlay", action="store_true", help="Run only the OBS overlay with sample messages")
-    parser.add_argument("--debug-tikfinity", action="store_true", help="Print raw Tikfinity payloads without using LM Studio")
+    parser.add_argument("--debug-tikfinity", action="store_true", help="Print parsed Tikfinity chat without using LM Studio")
+    parser.add_argument("--debug-youtube", action="store_true", help="Print parsed YouTube chat without using LM Studio")
+    parser.add_argument("--debug-kick-webhook", action="store_true", help="Run Kick webhook receiver and print parsed chat without using LM Studio")
     args = parser.parse_args()
 
     settings = load_settings()
@@ -460,14 +506,20 @@ async def async_main() -> None:
 
     if args.test_lmstudio:
         await bridge.test_lmstudio()
+    elif args.test_youtube:
+        await bridge.test_youtube()
     elif args.test_overlay:
         await bridge.test_overlay()
     elif args.debug_tikfinity:
         await bridge.debug_tikfinity()
+    elif args.debug_youtube:
+        await bridge.debug_youtube()
+    elif args.debug_kick_webhook:
+        await bridge.debug_kick_webhook()
     elif args.demo:
         await bridge.run_demo()
     else:
-        await bridge.run_tikfinity()
+        await bridge.run_platform(args.platform)
 
 
 def main() -> None:
