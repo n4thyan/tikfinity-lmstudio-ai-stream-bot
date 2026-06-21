@@ -1,18 +1,18 @@
-# Tikfinity LM Studio AI Stream Bot
+# Multi-Platform LM Studio AI Stream Bot
 
-A local TikTok LIVE experiment using Tikfinity, LM Studio, OBS, and Discord webhooks.
+A local livestream chat experiment using LM Studio, OBS, Discord webhooks, and platform adapters for TikTok/Tikfinity, YouTube Live, and Kick webhooks.
 
-The aim is to let TikTok chat interact with a small local LLM character while keeping the stream manageable through username sanitisation, message filtering, output filtering, cooldowns, queue limits, a local pause file, and Discord logging.
+The aim is to let livestream chat interact with a small local LLM character while keeping the stream manageable through username sanitisation, message filtering, output filtering, cooldowns, queue limits, a local pause file, and Discord logging.
 
 ## What this is
 
-This project is a first-pass MVP for a 24/7 style TikTok livestream where chat can talk to a local potato AI character.
+This project is a first-pass MVP for a 24/7 style livestream where chat can talk to a local potato AI character.
 
 Stream flow:
 
 ```text
-TikTok LIVE chat
-  -> Tikfinity Desktop WebSocket
+TikTok / YouTube / Kick chat
+  -> platform adapter
   -> Python bridge
   -> username sanitiser
   -> message filter and queue
@@ -22,25 +22,51 @@ TikTok LIVE chat
   -> Discord webhook logs
 ```
 
+## Supported chat sources
+
+| Platform | Adapter name | Status | Notes |
+|---|---|---|---|
+| TikTok LIVE | `tiktok` | First target | Uses Tikfinity's local WebSocket. |
+| YouTube Live | `youtube` | Added | Polls YouTube Live chat through the official API. Requires a YouTube API key and live chat ID or video ID. |
+| Kick | `kick-webhook` | Added | Runs a local webhook receiver for Kick's documented chat event payload. For real use, expose it with a tunnel or reverse proxy. |
+
+Set the platform in `.env`:
+
+```env
+CHAT_PLATFORM=tiktok
+```
+
+Allowed values:
+
+```text
+tiktok
+youtube
+kick-webhook
+```
+
 ## Current MVP features
 
+- Multi-platform chat source adapter layer
 - Tikfinity WebSocket listener
+- YouTube Live chat polling adapter
+- Kick chat webhook receiver adapter
 - `!ask`, `!roast`, `!lore`, `!mood`, `!reset`, `!help`, and `!status` command parsing
 - Separate username sanitising layer
 - Message and AI-output filtering hooks
-- Per-user cooldowns
+- Per-user cooldowns across platforms
 - Prompt queue limits
 - Local pause file support using `config/PAUSE_STREAM.txt`
 - Working LM Studio client using the local OpenAI-compatible API
 - `py -m src.doctor` setup report for first-run troubleshooting
 - `--test-lmstudio` health check for local model testing
-- `--test-overlay` mode for testing OBS without Tikfinity or LM Studio
+- `--test-youtube` health check for YouTube live chat ID discovery
+- `--test-overlay` mode for testing OBS without a chat platform or LM Studio
 - `--demo --fake-llm` mode for testing the bridge without LM Studio
-- `--debug-tikfinity` mode for printing raw Tikfinity payloads before enabling the bot
+- Platform debug modes for Tikfinity, YouTube, and Kick webhook payloads
 - Local OBS browser overlay using Server-Sent Events
 - Optional browser text-to-speech in the overlay
 - Discord webhook logging for accepted, blocked, error, and status events
-- Basic pytest coverage for filters, command parsing, Tikfinity extraction, and LM Studio response parsing
+- Basic pytest coverage for filters, command parsing, platform extraction, and LM Studio response parsing
 - GitHub Actions workflow for compile and test checks
 - Windows setup and run helper scripts
 - `.env.example` config so secrets are not committed
@@ -70,13 +96,19 @@ copy .env.example .env
 py -m pip install -r requirements.txt
 ```
 
-6. Run the setup doctor:
+6. Edit `.env` and choose a platform:
+
+```env
+CHAT_PLATFORM=tiktok
+```
+
+7. Run the setup doctor:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.doctor
 ```
 
-7. Test the OBS overlay:
+8. Test the OBS overlay:
 
 ```powershell
 .\scripts\start-overlay-test.ps1
@@ -88,37 +120,97 @@ Add this as an OBS Browser Source:
 http://127.0.0.1:8787/overlay
 ```
 
-8. Test the bridge without LM Studio:
+9. Test the bridge without LM Studio:
 
 ```powershell
 .\scripts\start-fake-demo.ps1
 ```
 
-9. Test LM Studio:
+10. Test LM Studio:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.bridge --test-lmstudio
 ```
 
-10. Run a local demo using LM Studio:
+11. Run a local demo using LM Studio:
 
 ```powershell
 .\scripts\start-lmstudio-demo.ps1
 ```
 
-11. Once the demo works, debug Tikfinity's payload shape:
+12. Debug your chosen platform:
 
 ```powershell
+# TikTok / Tikfinity
 .\scripts\start-tikfinity-debug.ps1
+
+# YouTube Live
+.\scripts\start-youtube-debug.ps1
+
+# Kick webhook receiver
+.\scripts\start-kick-webhook-debug.ps1
 ```
 
-12. When the payload parses correctly, run the full bridge:
+13. When the debug output parses correctly, run the full bridge:
 
 ```powershell
+# Uses CHAT_PLATFORM from .env
 .\scripts\start-live-bridge.ps1
+
+# Or force a platform for this run
+.\scripts\start-tiktok-live.ps1
+.\scripts\start-youtube-live.ps1
+.\scripts\start-kick-webhook-live.ps1
 ```
 
 For the full setup flow, see [`docs/setup-and-test.md`](docs/setup-and-test.md).
+
+## Platform config
+
+### TikTok / Tikfinity
+
+```env
+CHAT_PLATFORM=tiktok
+TIKFINITY_WS_URL=ws://127.0.0.1:21213/
+```
+
+Use Tikfinity first because it is still the quickest local route for TikTok LIVE chat.
+
+### YouTube Live
+
+```env
+CHAT_PLATFORM=youtube
+YOUTUBE_API_KEY=your_api_key_here
+YOUTUBE_VIDEO_ID=your_live_video_id_here
+# or set this directly if you already know it:
+YOUTUBE_LIVE_CHAT_ID=
+```
+
+The bridge can resolve an active chat ID from `YOUTUBE_VIDEO_ID` by calling YouTube's `videos.list` endpoint with `part=liveStreamingDetails`, then polls `liveChatMessages.list`.
+
+Useful checks:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.bridge --test-youtube
+.\scripts\start-youtube-debug.ps1
+```
+
+### Kick webhook
+
+```env
+CHAT_PLATFORM=kick-webhook
+KICK_WEBHOOK_HOST=127.0.0.1
+KICK_WEBHOOK_PORT=8790
+KICK_WEBHOOK_PATH=/kick/webhook
+```
+
+Local debug URL:
+
+```text
+http://127.0.0.1:8790/kick/webhook
+```
+
+For a real Kick app webhook, expose that endpoint with a tunnel or reverse proxy and point Kick's event subscription at the public URL. Keep it local-only until you are ready to handle public traffic.
 
 ## Local pause control
 
@@ -168,7 +260,7 @@ Good first targets:
 
 - 350M to 700M model for very weak PCs
 - 1B to 1.5B model for better replies
-- 2B to 3B only if OBS and Tikfinity still run smoothly
+- 2B to 3B only if OBS and the platform adapter still run smoothly
 
 ## Safety design
 
@@ -181,7 +273,7 @@ The system should allow normal stream banter, silly commands, mood changes, and 
 The project keeps two names internally:
 
 ```text
-raw_username  = real TikTok username, used only for cooldowns and private Discord logs
+raw_username  = real platform username, used only for cooldowns and private Discord logs
 safe_username = cleaned public name, used for LM Studio, OBS, and TTS
 ```
 
@@ -211,7 +303,7 @@ The browser TTS currently speaks the AI reply only, not the raw username or raw 
 # Setup report
 .\.venv\Scripts\python.exe -m src.doctor
 
-# Overlay only, no Tikfinity, no LM Studio
+# Overlay only, no platform, no LM Studio
 .\scripts\start-overlay-test.ps1
 
 # Local demo with built-in fake replies
@@ -223,11 +315,16 @@ The browser TTS currently speaks the AI reply only, not the raw username or raw 
 # Local demo with LM Studio
 .\scripts\start-lmstudio-demo.ps1
 
-# Print raw Tikfinity payloads and parsed chat results
+# Platform debug modes
 .\scripts\start-tikfinity-debug.ps1
+.\scripts\start-youtube-debug.ps1
+.\scripts\start-kick-webhook-debug.ps1
 
-# Full Tikfinity -> LM Studio -> OBS run
+# Full runs
 .\scripts\start-live-bridge.ps1
+.\scripts\start-tiktok-live.ps1
+.\scripts\start-youtube-live.ps1
+.\scripts\start-kick-webhook-live.ps1
 
 # Pause / resume chat replies
 .\scripts\pause-bridge.ps1
@@ -261,9 +358,9 @@ GitHub Actions also runs these checks on pushes and pull requests.
 This is still an early MVP, but the setup/test path is now split into safe stages:
 
 ```text
-doctor -> overlay test -> fake bridge demo -> LM Studio test -> LM Studio demo -> Tikfinity debug -> full run
+doctor -> overlay test -> fake bridge demo -> LM Studio test -> LM Studio demo -> platform debug -> full run
 ```
 
-The next important task is local hardware testing on the actual stream PC: LM Studio model speed, OBS load, Tikfinity payload shape, TTS behaviour, and filter strictness.
+The next important task is local hardware testing on the actual stream PC: LM Studio model speed, OBS load, platform payloads, TTS behaviour, and filter strictness.
 
 After that, the next upgrades are gifts, likes, mood changes, stream events, better filters, and a nicer retro overlay.
