@@ -34,6 +34,8 @@ async def run_doctor(settings: Settings) -> int:
     print(f"Command prefix: {settings.command_prefix}")
     print(f"Queue limit: {settings.queue_limit}")
     print(f"Prompt/reply caps: {settings.max_prompt_chars}/{settings.max_reply_chars}")
+    print(f"Pause file: {settings.pause_file}")
+    print(f"Pause state: {'paused' if settings.pause_file.exists() else 'live'}")
     print()
 
     print("LM Studio")
