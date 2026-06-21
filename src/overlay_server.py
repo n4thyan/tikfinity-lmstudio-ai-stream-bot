@@ -86,7 +86,7 @@ def create_app(broadcaster: OverlayBroadcaster, tts_enabled: bool = False) -> we
 
 async def start_overlay_server(host: str, port: int, broadcaster: OverlayBroadcaster, tts_enabled: bool) -> web.AppRunner:
     app = create_app(broadcaster, tts_enabled=tts_enabled)
-    runner = web.AppRunner(app)
+    runner = web.AppRunner(app, access_log=None)
     await runner.setup()
     site = web.TCPSite(runner, host, port)
     await site.start()
