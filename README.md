@@ -1,14 +1,44 @@
-# Multi-Platform LM Studio AI Stream Bot
+# PotatoBrain Live AI Stream Bot
 
-A local livestream chat experiment using LM Studio, OBS, Discord webhooks, and platform adapters for TikTok/Tikfinity, YouTube Live, and Kick webhooks.
+A working local livestream AI bot that lets TikTok, YouTube, or Kick chat send commands to a small LM Studio model and display the replies in OBS with a terminal-style overlay, optional browser text-to-speech, Discord logging, filtering, cooldowns, and emergency pause control.
 
-The aim is to let livestream chat interact with a small local LLM character while keeping the stream manageable through username sanitisation, message filtering, output filtering, cooldowns, queue limits, a local pause file, and Discord logging.
+This is the first completed portfolio project in this repo. It was built as a practical stream automation project, not just a code demo.
 
-## What this is
+## Project status
 
-This project is a first-pass MVP for a 24/7 style livestream where chat can talk to a local potato AI character.
+**Portfolio v1: working local release**
 
-Stream flow:
+Validated setup path:
+
+```text
+Windows PC
+  -> LM Studio local server
+  -> Python bridge
+  -> message filtering and command handling
+  -> local LLM reply
+  -> OBS browser overlay
+  -> browser TTS
+  -> Discord webhook logging
+```
+
+TikTok/Tikfinity path:
+
+```text
+TikTok LIVE chat
+  -> Tikfinity local Event API / WebSocket
+  -> Python bridge
+  -> PotatoBrain reply pipeline
+```
+
+The local LM Studio, OBS overlay, TTS, Discord logging, pause/resume control, and Tikfinity WebSocket connection path have been tested. Longer unattended livestream testing still depends on the streaming PC being powerful enough to run TikTok LIVE Studio, OBS, LM Studio, Tikfinity, and the bridge at the same time.
+
+## What it does
+
+PotatoBrain is a small livestream character bot designed for chaotic but controlled chat interaction. Viewers can send commands, the bridge sanitises and filters input, a local LLM generates a short reply, and the result appears on stream through an OBS browser overlay.
+
+The project is intentionally built around local AI rather than a hosted API. This means it can run without paying per request, but performance depends heavily on the machine and model size.
+
+## Stream flow
 
 ```text
 TikTok / YouTube / Kick chat
@@ -16,32 +46,33 @@ TikTok / YouTube / Kick chat
   -> Python bridge
   -> username sanitiser
   -> message filter and queue
-  -> LM Studio local API
+  -> LM Studio local OpenAI-compatible API
   -> output filter
-  -> OBS browser overlay / optional browser TTS
+  -> OBS browser overlay
+  -> optional browser TTS
   -> Discord webhook logs
 ```
 
-You can also run it in local showcase mode without any platform connected:
+Local showcase mode is also supported:
 
 ```text
-manual demo prompts
+manual PowerShell prompt
   -> Python bridge
   -> LM Studio local API
-  -> terminal-style OBS overlay
+  -> OBS terminal overlay and TTS
 ```
 
-This is useful for testing, recording clips, tuning the character, or building the stream scene before connecting real chat.
+This is useful for testing, recording clips, tuning the character, or showing the project without needing to go live.
 
 ## Supported chat sources
 
 | Platform | Adapter name | Status | Notes |
 |---|---|---|---|
-| TikTok LIVE | `tiktok` | First target | Uses Tikfinity's local WebSocket. |
-| YouTube Live | `youtube` | Added | Polls YouTube Live chat through the official API. Requires a YouTube API key and live chat ID or video ID. |
-| Kick | `kick-webhook` | Added | Runs a local webhook receiver for Kick's documented chat event payload. For real use, expose it with a tunnel or reverse proxy. |
+| TikTok LIVE | `tiktok` | Primary target | Uses Tikfinity's local WebSocket/Event API. |
+| YouTube Live | `youtube` | Implemented | Polls YouTube Live chat through the official API. Requires a YouTube API key and live chat ID or video ID. |
+| Kick | `kick-webhook` | Implemented | Runs a local webhook receiver for Kick chat event payloads. For real use, expose it with a tunnel or reverse proxy. |
 
-Set the platform in `.env`:
+Set the active platform in `.env`:
 
 ```env
 CHAT_PLATFORM=tiktok
@@ -55,37 +86,53 @@ youtube
 kick-webhook
 ```
 
-## Current MVP features
+## Main features
 
-- Multi-platform chat source adapter layer
-- Tikfinity WebSocket listener
+- Multi-platform chat adapter layer
+- Tikfinity WebSocket listener for TikTok LIVE
 - YouTube Live chat polling adapter
-- Kick chat webhook receiver adapter
+- Kick webhook receiver adapter
 - `!ask`, `!roast`, `!lore`, `!mood`, `!reset`, `!help`, and `!status` command parsing
-- Separate username sanitising layer
-- Message and AI-output filtering hooks
+- Separate username sanitisation layer
+- Message filtering and AI output filtering hooks
 - Per-user cooldowns across platforms
-- Prompt queue limits
-- Local pause file support using `config/PAUSE_STREAM.txt`
+- Queue limit to stop the model being overwhelmed
+- Local emergency pause file using `config/PAUSE_STREAM.txt`
 - Working LM Studio client using the local OpenAI-compatible API
-- `py -m src.doctor` setup report for first-run troubleshooting
-- `--test-lmstudio` health check for local model testing
-- `--test-youtube` health check for YouTube live chat ID discovery
-- `--test-overlay` mode for testing OBS without a chat platform or LM Studio
-- `--demo --fake-llm` mode for testing the bridge without LM Studio
-- Local showcase/demo mode with real LM Studio replies
-- Platform debug modes for Tikfinity, YouTube, and Kick webhook payloads
-- Local OBS terminal-style browser overlay using Server-Sent Events
+- Terminal/CMD-style OBS browser overlay using Server-Sent Events
 - Optional browser text-to-speech in the overlay
-- Discord webhook logging for accepted, blocked, error, and status events
-- Basic pytest coverage for filters, command parsing, platform extraction, and LM Studio response parsing
-- GitHub Actions workflow for compile and test checks
+- Discord webhook logging for accepted prompts, blocked prompts, replies, status, and errors
+- `py -m src.doctor` setup report for first-run troubleshooting
+- Local fake demo mode without LM Studio
+- Local LM Studio demo mode without a live platform
+- Platform debug modes for Tikfinity, YouTube, and Kick
 - Windows setup and run helper scripts
 - `.env.example` config so secrets are not committed
+- Basic pytest coverage for filters, command parsing, platform extraction, and LM Studio response parsing
+- GitHub Actions workflow for compile and test checks
+
+## Why this is a portfolio project
+
+This project demonstrates practical AI-assisted engineering rather than a simple chatbot wrapper. It combines local AI, livestream tooling, event-driven message handling, frontend overlay work, platform adapters, basic safety controls, and operational tooling.
+
+It shows:
+
+- Local LLM integration through LM Studio
+- OpenAI-compatible API usage without depending on a hosted API
+- Async Python service design
+- OBS browser overlay development
+- WebSocket and webhook-based chat ingestion
+- Event queue and cooldown handling
+- Input and output filtering
+- Discord webhook observability
+- Windows-first setup scripting
+- Real-world debugging under hardware limits
 
 ## What this is not
 
-This is not a moderation replacement and it should not be treated as fully unattended production software yet. The stream can be chaotic, but raw chat and raw usernames should never go straight to OBS or TTS.
+This is not a moderation replacement and it should not be treated as fully unattended production software. The stream character is designed to be chaotic, but raw chat and raw usernames should never go straight to OBS or TTS.
+
+This is also not a high-end AI agent. It is intentionally designed to work with small local models, so the personality is part of the appeal: quick, odd, funny, and sometimes genuinely potato-brained.
 
 ## Quick start
 
@@ -152,7 +199,7 @@ http://127.0.0.1:8787/overlay
 
 This lets you type prompts manually in PowerShell and see the real local model reply in OBS without Tikfinity, YouTube, or Kick connected.
 
-12. Debug your chosen platform:
+12. Debug your chosen platform when needed:
 
 ```powershell
 # TikTok / Tikfinity
@@ -165,7 +212,7 @@ This lets you type prompts manually in PowerShell and see the real local model r
 .\scripts\start-kick-webhook-debug.ps1
 ```
 
-13. When the debug output parses correctly, run the full bridge:
+13. Run the full bridge:
 
 ```powershell
 # Uses CHAT_PLATFORM from .env
@@ -178,6 +225,28 @@ This lets you type prompts manually in PowerShell and see the real local model r
 ```
 
 For the full setup flow, see [`docs/setup-and-test.md`](docs/setup-and-test.md).
+
+## TikTok / Tikfinity setup
+
+Use this `.env` configuration:
+
+```env
+CHAT_PLATFORM=tiktok
+TIKFINITY_WS_URL=ws://127.0.0.1:21213/
+```
+
+Recommended live order:
+
+```text
+1. Start LM Studio local server and load the model.
+2. Open OBS and check the overlay source.
+3. Open TikTok LIVE Studio and prepare the scene.
+4. Go live from TikTok LIVE Studio.
+5. Open Tikfinity and connect it to the active TikTok LIVE.
+6. Start the bridge with scripts/start-live-bridge.ps1.
+```
+
+Tikfinity is used because it provides a practical local way to capture TikTok LIVE events without writing a full TikTok chat client from scratch.
 
 ## Local showcase mode
 
@@ -206,53 +275,6 @@ This mode is the safest place to tune:
 - Discord logging
 - CPU/RAM load
 
-## Platform config
-
-### TikTok / Tikfinity
-
-```env
-CHAT_PLATFORM=tiktok
-TIKFINITY_WS_URL=ws://127.0.0.1:21213/
-```
-
-Use Tikfinity first because it is still the quickest local route for TikTok LIVE chat.
-
-### YouTube Live
-
-```env
-CHAT_PLATFORM=youtube
-YOUTUBE_API_KEY=your_api_key_here
-YOUTUBE_VIDEO_ID=your_live_video_id_here
-# or set this directly if you already know it:
-YOUTUBE_LIVE_CHAT_ID=
-```
-
-The bridge can resolve an active chat ID from `YOUTUBE_VIDEO_ID` by calling YouTube's `videos.list` endpoint with `part=liveStreamingDetails`, then polls `liveChatMessages.list`.
-
-Useful checks:
-
-```powershell
-.\.venv\Scripts\python.exe -m src.bridge --test-youtube
-.\scripts\start-youtube-debug.ps1
-```
-
-### Kick webhook
-
-```env
-CHAT_PLATFORM=kick-webhook
-KICK_WEBHOOK_HOST=127.0.0.1
-KICK_WEBHOOK_PORT=8790
-KICK_WEBHOOK_PATH=/kick/webhook
-```
-
-Local debug URL:
-
-```text
-http://127.0.0.1:8790/kick/webhook
-```
-
-For a real Kick app webhook, expose that endpoint with a tunnel or reverse proxy and point Kick's event subscription at the public URL. Keep it local-only until you are ready to handle public traffic.
-
 ## Local pause control
 
 The bridge checks for this file:
@@ -275,6 +297,8 @@ Remove it to resume:
 
 While paused, `!help` and `!status` still work so the overlay can show that the bridge is paused.
 
+For live use, keep a second PowerShell window open with the pause command ready.
+
 ## LM Studio config
 
 The default `.env.example` assumes LM Studio is running locally on port `1234`:
@@ -293,6 +317,12 @@ Set `LMSTUDIO_MODEL` to the model ID shown by LM Studio. You can check visible m
 .\.venv\Scripts\python.exe -m src.bridge --test-lmstudio
 ```
 
+Recommended small models:
+
+- 350M to 700M for very weak PCs
+- 1B to 1.5B for better replies while staying lightweight
+- 2B to 3B only if OBS, Tikfinity, and the streaming software still run smoothly
+
 ## Personality prompt
 
 The stream character prompt lives in:
@@ -305,7 +335,7 @@ Edit this file to change PotatoBrain's style. Keeping the prompt in the project 
 
 ## Discord logging
 
-Discord webhook logging is optional. It is useful for checking prompts, blocked messages, model replies, and errors from another screen or your phone.
+Discord webhook logging is optional, but useful for checking prompts, blocked messages, model replies, and errors from another screen or phone.
 
 Setup guide:
 
@@ -315,23 +345,11 @@ docs/discord-webhook.md
 
 The webhook URL should only be placed in your local `.env` file. Never commit it to GitHub.
 
-## Recommended small models
-
-Start with something in the 350M to 1.5B range. The bot is meant to be quick and funny, not academically clever.
-
-Good first targets:
-
-- 350M to 700M model for very weak PCs
-- 1B to 1.5B model for better replies
-- 2B to 3B only if OBS and the platform adapter still run smoothly
-
 ## Safety design
 
 The intended rule is soft chaos with hard account-protection limits.
 
 The system should allow normal stream banter, silly commands, mood changes, and fictional AI character jokes, while filtering platform-risk content, private personal data, spam walls, and obvious stream-bait attempts.
-
-## Username handling
 
 The project keeps two names internally:
 
@@ -354,6 +372,8 @@ The browser TTS currently speaks the AI reply only, not the raw username or raw 
 !lore
 !mood normal
 !mood confused
+!mood angry
+!mood dramatic
 !reset
 ```
 
@@ -416,18 +436,16 @@ py -m pytest
 
 GitHub Actions also runs these checks on pushes and pull requests.
 
-## Repository status
+## Known limitations
 
-This is still an early MVP, but the setup/test path is now split into safe stages:
+- Live performance depends heavily on the local PC.
+- TikTok LIVE Studio, OBS, Tikfinity, LM Studio, and the bridge can be heavy together on weak hardware.
+- Small local models can give strange or low-quality replies, which is part of the PotatoBrain character but not ideal for serious assistant use.
+- Longer unattended testing is still recommended before leaving the stream running for many hours.
+- TikTok integration depends on Tikfinity being connected to the active live session.
 
-```text
-doctor -> overlay test -> fake bridge demo -> LM Studio test -> LM Studio demo -> platform debug -> full run
-```
+## Portfolio summary
 
-The main tested local path is now:
+This project is a complete first portfolio build showing a real AI-assisted workflow: idea, implementation, local testing, integration with external tools, safety controls, documentation, and release polish.
 
-```text
-LM Studio -> bridge -> filters -> terminal OBS overlay
-```
-
-The next important tasks are live-platform payload testing, Discord logging test, longer runtime testing, TTS behaviour, filter strictness, and stream event support.
+For a website-ready project write-up, see [`docs/portfolio-case-study.md`](docs/portfolio-case-study.md).
