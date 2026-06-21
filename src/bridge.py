@@ -4,9 +4,10 @@ import argparse
 import asyncio
 import json
 import logging
+import random
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Iterable
 
 import websockets
 
@@ -29,8 +30,9 @@ class ChatCommand:
 
 
 class StreamBridge:
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, *, use_fake_llm: bool = False) -> None:
         self.settings = settings
+        self.use_fake_llm = use_fake_llm
         self.personality = load_personality(settings)
         self.safety = SafetyConfig.load(settings.safety_config_file)
         self.discord = DiscordLogger(settings.discord_webhook_url)
@@ -90,10 +92,39 @@ class StreamBridge:
         print("Test reply:")
         print(filtered.text)
 
+    async def test_overlay(self) -> None:
+        """Run only the OBS browser overlay and publish fake events for setup testing."""
+        await start_overlay_server(
+            self.settings.overlay_host,
+            self.settings.overlay_port,
+            self.overlay,
+            self.settings.overlay_tts_enabled,
+        )
+        print(f"OBS overlay: {self.settings.overlay_url}")
+        print("Overlay test mode is running. Add the URL above as an OBS Browser Source.")
+        print("Press Ctrl+C to stop.")
+        count = 1
+        while True:
+            await self.overlay.publish(
+                {
+                    "type": "reply",
+                    "username": f"Viewer {count}",
+                    "prompt": "local overlay test",
+                    "reply": f"Overlay test message {count}. If you can see this in OBS, the browser source is working.",
+                    "mood": self.mood,
+                    "tts": True,
+                    "ttsEnabled": self.settings.overlay_tts_enabled,
+                }
+            )
+            count += 1
+            await asyncio.sleep(5)
+
     async def run_demo(self) -> None:
         await self.start()
         print(f"OBS overlay: {self.settings.overlay_url}")
-        print("Demo mode. Type messages like: !ask are you alive")
+        mode = "fake local replies" if self.use_fake_llm else "LM Studio replies"
+        print(f"Demo mode using {mode}.")
+        print("Type messages like: !ask are you alive")
         while True:
             line = await asyncio.to_thread(input, "> ")
             await self.process_chat_message("demo_user", line)
@@ -112,11 +143,30 @@ class StreamBridge:
                 await self.discord.error(f"Tikfinity connection problem: {exc}")
                 await asyncio.sleep(5)
 
+    async def debug_tikfinity(self) -> None:
+        """Print raw Tikfinity payloads and the parsed chat result without generating replies."""
+        print(f"Connecting to Tikfinity WebSocket: {self.settings.tikfinity_ws_url}")
+        print("Debug mode only prints payloads. It does not call LM Studio or update OBS.")
+        async with websockets.connect(self.settings.tikfinity_ws_url, ping_interval=20) as websocket:
+            print("Connected. Send a TikTok LIVE chat message now.")
+            async for raw_payload in websocket:
+                text_payload = raw_payload.decode("utf-8", errors="replace") if isinstance(raw_payload, bytes) else raw_payload
+                print("\n--- raw Tikfinity payload ---")
+                print(text_payload[:2000])
+                try:
+                    payload = json.loads(text_payload)
+                except json.JSONDecodeError:
+                    print("Parsed: not JSON")
+                    continue
+                extracted = extract_comment_payload(payload)
+                print("Parsed chat:", extracted if extracted else "no chat message detected")
+
     async def process_tikfinity_payload(self, raw_payload: str | bytes) -> None:
+        text_payload = raw_payload.decode("utf-8", errors="replace") if isinstance(raw_payload, bytes) else raw_payload
         try:
-            payload = json.loads(raw_payload)
+            payload = json.loads(text_payload)
         except json.JSONDecodeError:
-            LOGGER.debug("Ignored non-JSON Tikfinity payload: %r", raw_payload)
+            LOGGER.debug("Ignored non-JSON Tikfinity payload: %r", text_payload)
             return
 
         extracted = extract_comment_payload(payload)
@@ -164,7 +214,6 @@ class StreamBridge:
             if self.settings.discord_log_blocked:
                 await self.discord.blocked(raw_username, "queue full", message)
             return
-
         if self.settings.discord_log_accepted:
             await self.discord.accepted(raw_username, safe_user.text, chat_filter.text)
 
@@ -193,38 +242,33 @@ class StreamBridge:
                 else:
                     filtered_reply_text = filtered_reply.text
 
-                await self.overlay.publish(
-                    {
-                        "type": "reply",
-                        "username": command.safe_username,
-                        "prompt": command.prompt,
-                        "reply": filtered_reply_text,
-                        "mood": self.mood,
-                        "tts": True,
-                        "ttsEnabled": self.settings.overlay_tts_enabled,
-                    }
-                )
-
+                await self._publish_reply(command, filtered_reply_text)
                 if self.settings.discord_log_replies:
                     await self.discord.reply(command.safe_username, command.prompt, filtered_reply_text)
             except Exception as exc:  # noqa: BLE001
                 LOGGER.exception("Reply generation failed")
                 await self.discord.error(f"Reply generation failed: {exc}")
-                await self.overlay.publish(
-                    {
-                        "type": "reply",
-                        "username": command.safe_username,
-                        "prompt": command.prompt,
-                        "reply": "My tiny local brain crashed. Try again in a minute.",
-                        "mood": self.mood,
-                        "tts": True,
-                        "ttsEnabled": self.settings.overlay_tts_enabled,
-                    }
-                )
+                await self._publish_reply(command, "My tiny local brain crashed. Try again in a minute.")
             finally:
                 self.queue.task_done()
 
+    async def _publish_reply(self, command: ChatCommand, reply_text: str) -> None:
+        await self.overlay.publish(
+            {
+                "type": "reply",
+                "username": command.safe_username,
+                "prompt": command.prompt,
+                "reply": reply_text,
+                "mood": self.mood,
+                "tts": True,
+                "ttsEnabled": self.settings.overlay_tts_enabled,
+            }
+        )
+
     async def _generate_reply(self, command: ChatCommand) -> str:
+        if self.use_fake_llm:
+            return build_fake_reply(command, self.mood)
+
         command_hint = {
             "ask": "Answer the viewer in character.",
             "roast": "Give a mild fictional roast of the AI or the situation, not the real person.",
@@ -239,6 +283,18 @@ class StreamBridge:
             f"Viewer message: {command.prompt}"
         )
         return await self.llm.chat(self.personality, viewer_message)
+
+
+def build_fake_reply(command: ChatCommand, mood: str) -> str:
+    """Small deterministic-ish reply generator for overlay and filter testing without LM Studio."""
+    templates = [
+        "I heard that, {user}. My potato circuits are pretending to understand.",
+        "Current mood is {mood}. That means my answer is probably held together with tape.",
+        "Command received: {cmd}. The tiny brain cell has been notified.",
+        "{user}, I would answer properly but Windows just made a mysterious USB noise.",
+    ]
+    template = random.choice(templates)
+    return template.format(user=command.safe_username, mood=mood, cmd=command.command)
 
 
 def parse_command(message: str, prefix: str) -> tuple[str, str] | None:
@@ -270,45 +326,57 @@ def parse_command(message: str, prefix: str) -> tuple[str, str] | None:
 
 
 def extract_comment_payload(payload: dict[str, Any]) -> tuple[str, str] | None:
-    roots = [payload]
-    for key in ("data", "event", "payload"):
-        value = payload.get(key)
-        if isinstance(value, dict):
-            roots.append(value)
+    """Extract a chat username/message pair from common Tikfinity payload shapes."""
+    roots = list(_iter_dicts(payload))
+    event_name = _find_first_string(roots, ("event", "type", "eventName", "name"))
+    if event_name:
+        event_name_lower = event_name.lower()
+        if any(word in event_name_lower for word in ("gift", "like", "follow", "share", "join", "subscribe")):
+            return None
 
-    event_name = str(payload.get("event") or payload.get("type") or payload.get("eventName") or "").lower()
-    if event_name and not any(word in event_name for word in ("chat", "comment", "message")):
-        LOGGER.debug("Payload event did not look like a chat event: %s", event_name)
+    message_keys = ("comment", "commentText", "message", "msg", "text", "content")
+    user_keys = ("uniqueId", "nickname", "username", "displayName", "userId", "id")
 
-    message_keys = ("comment", "commentText", "message", "text", "content")
-    user_keys = ("uniqueId", "nickname", "username", "displayName", "userId")
+    message = _find_first_string(roots, message_keys)
+    username = _find_username(roots, user_keys)
 
-    message = None
-    username = None
+    if not message:
+        return None
+    return username or "unknown_viewer", message
+
+
+def _iter_dicts(value: Any) -> Iterable[dict[str, Any]]:
+    if isinstance(value, dict):
+        yield value
+        for child in value.values():
+            yield from _iter_dicts(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from _iter_dicts(child)
+
+
+def _find_first_string(roots: Iterable[dict[str, Any]], keys: tuple[str, ...]) -> str | None:
     for root in roots:
-        for key in message_keys:
+        for key in keys:
             value = root.get(key)
             if isinstance(value, str) and value.strip():
-                message = value
-                break
+                return value.strip()
+    return None
+
+
+def _find_username(roots: Iterable[dict[str, Any]], user_keys: tuple[str, ...]) -> str | None:
+    for root in roots:
         user_obj = root.get("user")
         if isinstance(user_obj, dict):
             for key in user_keys:
                 value = user_obj.get(key)
                 if isinstance(value, str) and value.strip():
-                    username = value
-                    break
+                    return value.strip()
         for key in user_keys:
             value = root.get(key)
             if isinstance(value, str) and value.strip():
-                username = username or value
-                break
-        if message:
-            break
-
-    if not message:
-        return None
-    return username or "unknown_viewer", message
+                return value.strip()
+    return None
 
 
 def configure_logging(level: str) -> None:
@@ -321,15 +389,22 @@ def configure_logging(level: str) -> None:
 async def async_main() -> None:
     parser = argparse.ArgumentParser(description="Tikfinity to LM Studio stream bridge")
     parser.add_argument("--demo", action="store_true", help="Run without Tikfinity and read commands from stdin")
+    parser.add_argument("--fake-llm", action="store_true", help="Use built-in fake replies instead of LM Studio")
     parser.add_argument("--test-lmstudio", action="store_true", help="Check the local LM Studio server and print one reply")
+    parser.add_argument("--test-overlay", action="store_true", help="Run only the OBS overlay with sample messages")
+    parser.add_argument("--debug-tikfinity", action="store_true", help="Print raw Tikfinity payloads without using LM Studio")
     args = parser.parse_args()
 
     settings = load_settings()
     configure_logging(settings.log_level)
-    bridge = StreamBridge(settings)
+    bridge = StreamBridge(settings, use_fake_llm=args.fake_llm)
 
     if args.test_lmstudio:
         await bridge.test_lmstudio()
+    elif args.test_overlay:
+        await bridge.test_overlay()
+    elif args.debug_tikfinity:
+        await bridge.debug_tikfinity()
     elif args.demo:
         await bridge.run_demo()
     else:
