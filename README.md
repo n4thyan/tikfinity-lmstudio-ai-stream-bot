@@ -30,7 +30,7 @@ TikTok LIVE chat
 - Message and AI-output filtering hooks
 - Per-user cooldowns
 - Prompt queue limits
-- LM Studio OpenAI-compatible chat completions client
+- LM Studio client interface placeholder ready for final local API wiring
 - Local OBS browser overlay using Server-Sent Events
 - Optional browser text-to-speech in the overlay
 - Discord webhook logging for accepted, blocked, error, and status events
@@ -122,5 +122,7 @@ This is an early MVP scaffold. The first goal is to get one loop working:
 ```text
 Tikfinity message -> bridge -> LM Studio reply -> OBS overlay -> Discord log
 ```
+
+The main remaining task is replacing the temporary LM Studio client placeholder after local testing confirms the exact model name and endpoint on your PC.
 
 After that, the next upgrades are gifts, likes, mood changes, stream events, better filters, and a nicer retro overlay.
