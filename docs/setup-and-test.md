@@ -1,6 +1,6 @@
 # Setup and test checklist
 
-Use this checklist before trying a real TikTok LIVE run.
+Use this checklist before trying a real livestream run.
 
 ## 1. Clone and install
 
@@ -17,19 +17,35 @@ copy .env.example .env
 py -m pip install -r requirements-dev.txt
 ```
 
-## 2. Run the setup doctor
+## 2. Pick a platform in `.env`
 
-This checks required files, important `.env` values, the OBS overlay URL, Discord status, pause state, and LM Studio connectivity.
+```env
+CHAT_PLATFORM=tiktok
+```
+
+Supported values:
+
+```text
+tiktok
+youtube
+kick-webhook
+```
+
+Start with `tiktok` if you want the original Tikfinity flow. Use `youtube` once you have a YouTube Data API key and a live video/chat ID. Use `kick-webhook` when you are ready to test Kick's webhook event payload.
+
+## 3. Run the setup doctor
+
+This checks required files, important `.env` values, the OBS overlay URL, Discord status, pause state, selected platform settings, and LM Studio connectivity.
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.doctor
 ```
 
-It is OK if LM Studio fails here before you have started the LM Studio server. Fix the easy file/config warnings first, then come back to LM Studio after step 5.
+It is OK if LM Studio fails here before you have started the LM Studio server. Fix the easy file/config warnings first, then come back to LM Studio after step 6.
 
-## 3. Test the OBS overlay without LM Studio
+## 4. Test the OBS overlay without LM Studio
 
-This checks the browser source first, with no Tikfinity and no model involved.
+This checks the browser source first, with no platform and no model involved.
 
 ```powershell
 .\scripts\start-overlay-test.ps1
@@ -53,7 +69,7 @@ Expected result:
 - A new local test message appears every few seconds.
 - If `OVERLAY_TTS_ENABLED=true`, the browser source should speak the sample replies.
 
-## 4. Test the bridge without LM Studio
+## 5. Test the bridge without LM Studio
 
 This checks command parsing, filters, cooldowns, queueing, Discord logging, and the OBS overlay.
 
@@ -86,7 +102,7 @@ Expected result:
 - `!help` and `!status` work without using the model.
 - Discord receives logs if `DISCORD_WEBHOOK_URL` is set.
 
-## 5. Start LM Studio
+## 6. Start LM Studio
 
 In LM Studio:
 
@@ -102,7 +118,7 @@ Default `.env` value:
 LMSTUDIO_BASE_URL=http://127.0.0.1:1234/v1
 ```
 
-## 6. Find the exact model ID
+## 7. Find the exact model ID
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.bridge --test-lmstudio
@@ -122,7 +138,7 @@ You can also rerun the full doctor after this:
 .\.venv\Scripts\python.exe -m src.doctor
 ```
 
-## 7. Test the full local demo with LM Studio
+## 8. Test the full local demo with LM Studio
 
 ```powershell
 .\scripts\start-lmstudio-demo.ps1
@@ -139,7 +155,7 @@ Try:
 ```text
 !help
 !status
-!ask say hello to TikTok chat
+!ask say hello to chat
 !roast your own tiny CPU
 !lore
 !mood scared
@@ -152,7 +168,7 @@ Expected result:
 - Output is short enough for the stream.
 - Replies are logged to Discord if enabled.
 
-## 8. Test the local pause file
+## 9. Test the local pause file
 
 The bridge can be paused by creating `config/PAUSE_STREAM.txt`. This is a local safety control for testing or stopping new chat replies without closing OBS.
 
@@ -175,7 +191,9 @@ Expected result:
 - `!status` reports `paused`.
 - Removing the pause file lets replies resume.
 
-## 9. Check Tikfinity payloads before enabling the bot
+## 10. Debug the selected platform
+
+### TikTok / Tikfinity
 
 Open Tikfinity and connect it to your TikTok LIVE session. Then run:
 
@@ -193,31 +211,97 @@ Send a normal chat message in TikTok LIVE.
 
 Expected result:
 
-- The console prints the raw Tikfinity payload.
 - The console prints the parsed username and message.
 
-If parsed chat says `no chat message detected`, save the raw payload and update `extract_comment_payload()` in `src/bridge.py` to match the shape Tikfinity is sending.
+### YouTube Live
 
-## 10. Run with Tikfinity
+Set either `YOUTUBE_LIVE_CHAT_ID` directly, or set `YOUTUBE_VIDEO_ID` for an active live stream and let the bridge discover the chat ID.
+
+```env
+CHAT_PLATFORM=youtube
+YOUTUBE_API_KEY=your_api_key_here
+YOUTUBE_VIDEO_ID=your_live_video_id_here
+```
+
+Check discovery:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.bridge --test-youtube
+```
+
+Then run:
+
+```powershell
+.\scripts\start-youtube-debug.ps1
+```
+
+Expected result:
+
+- The console prints parsed YouTube chat messages.
+- The bridge follows YouTube's returned polling interval instead of hammering the API.
+
+### Kick webhook
+
+Set:
+
+```env
+CHAT_PLATFORM=kick-webhook
+KICK_WEBHOOK_HOST=127.0.0.1
+KICK_WEBHOOK_PORT=8790
+KICK_WEBHOOK_PATH=/kick/webhook
+```
+
+Run:
+
+```powershell
+.\scripts\start-kick-webhook-debug.ps1
+```
+
+Local endpoint:
+
+```text
+http://127.0.0.1:8790/kick/webhook
+```
+
+Expected result:
+
+- The receiver starts locally.
+- When a Kick `chat.message.sent` webhook payload reaches that endpoint, the console prints the parsed username and message.
+
+For real Kick webhook testing, expose the local endpoint with a tunnel or reverse proxy and point Kick's event subscription at the public URL.
+
+## 11. Run the full bridge
+
+Use the platform selected in `.env`:
 
 ```powershell
 .\scripts\start-live-bridge.ps1
 ```
 
-Equivalent manual command:
+Or force a specific platform for that run:
 
 ```powershell
-.\.venv\Scripts\python.exe -m src.bridge
+.\scripts\start-tiktok-live.ps1
+.\scripts\start-youtube-live.ps1
+.\scripts\start-kick-webhook-live.ps1
+```
+
+Equivalent manual command examples:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.bridge --platform tiktok
+.\.venv\Scripts\python.exe -m src.bridge --platform youtube
+.\.venv\Scripts\python.exe -m src.bridge --platform kick-webhook
 ```
 
 Expected result:
 
-- The bridge connects to Tikfinity.
+- The bridge connects to the selected chat source.
 - Only supported commands are processed.
 - The overlay updates when viewers use commands.
 - Discord receives accepted, blocked, reply, and error logs depending on `.env` settings.
 
-## 11. Basic stream safety checks
+## 12. Basic stream safety checks
 
 Before leaving it running for a long session:
 
@@ -229,7 +313,7 @@ Before leaving it running for a long session:
 - Check Discord logs from your phone.
 - Keep the stream account open on your phone for emergency moderation.
 
-## 12. Recommended first-run settings
+## 13. Recommended first-run settings
 
 For the first real test, use conservative values:
 
