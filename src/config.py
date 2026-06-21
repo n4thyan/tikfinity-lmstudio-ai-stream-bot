@@ -68,6 +68,7 @@ class Settings:
     max_reply_chars: int
     personality_file: Path
     safety_config_file: Path
+    pause_file: Path
     log_level: str
 
     @property
@@ -100,6 +101,7 @@ def load_settings() -> Settings:
         max_reply_chars=_int("MAX_REPLY_CHARS", 260),
         personality_file=_path("PERSONALITY_FILE", "config/bot_personality.example.txt"),
         safety_config_file=_path("SAFETY_CONFIG_FILE", "config/safety_words.example.json"),
+        pause_file=_path("PAUSE_FILE", "config/PAUSE_STREAM.txt"),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
     )
 
