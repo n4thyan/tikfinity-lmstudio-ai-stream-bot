@@ -18,6 +18,16 @@ def test_parse_lore_command_gets_default_prompt() -> None:
     assert command[1]
 
 
+def test_parse_help_aliases() -> None:
+    assert parse_command("!help", "!") == ("help", "Show the available stream commands.")
+    assert parse_command("!commands", "!") == ("help", "Show the available stream commands.")
+
+
+def test_parse_status_aliases() -> None:
+    assert parse_command("!status", "!") == ("status", "Show the bridge status.")
+    assert parse_command("!queue", "!") == ("status", "Show the bridge status.")
+
+
 def test_filter_blocks_links() -> None:
     config = SafetyConfig((), {}, (), {})
     result = filter_chat_text("look at https://example.test", config, max_chars=200)
