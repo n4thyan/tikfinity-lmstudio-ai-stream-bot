@@ -47,7 +47,15 @@ def _path(name: str, default: str) -> Path:
 
 @dataclass(frozen=True)
 class Settings:
+    platform: str
     tikfinity_ws_url: str
+    youtube_api_key: str
+    youtube_live_chat_id: str
+    youtube_video_id: str
+    youtube_poll_floor_seconds: float
+    kick_webhook_host: str
+    kick_webhook_port: int
+    kick_webhook_path: str
     lmstudio_base_url: str
     lmstudio_model: str
     lmstudio_timeout_seconds: int
@@ -75,12 +83,25 @@ class Settings:
     def overlay_url(self) -> str:
         return f"http://{self.overlay_host}:{self.overlay_port}/overlay"
 
+    @property
+    def kick_webhook_url(self) -> str:
+        path = self.kick_webhook_path if self.kick_webhook_path.startswith("/") else f"/{self.kick_webhook_path}"
+        return f"http://{self.kick_webhook_host}:{self.kick_webhook_port}{path}"
+
 
 def load_settings() -> Settings:
     load_dotenv(BASE_DIR / ".env")
 
     return Settings(
+        platform=os.getenv("CHAT_PLATFORM", "tiktok").strip().lower(),
         tikfinity_ws_url=os.getenv("TIKFINITY_WS_URL", "ws://127.0.0.1:21213/"),
+        youtube_api_key=os.getenv("YOUTUBE_API_KEY", ""),
+        youtube_live_chat_id=os.getenv("YOUTUBE_LIVE_CHAT_ID", ""),
+        youtube_video_id=os.getenv("YOUTUBE_VIDEO_ID", ""),
+        youtube_poll_floor_seconds=_float("YOUTUBE_POLL_FLOOR_SECONDS", 2.0),
+        kick_webhook_host=os.getenv("KICK_WEBHOOK_HOST", "127.0.0.1"),
+        kick_webhook_port=_int("KICK_WEBHOOK_PORT", 8790),
+        kick_webhook_path=os.getenv("KICK_WEBHOOK_PATH", "/kick/webhook"),
         lmstudio_base_url=os.getenv("LMSTUDIO_BASE_URL", "http://127.0.0.1:1234/v1").rstrip("/"),
         lmstudio_model=os.getenv("LMSTUDIO_MODEL", "local-model"),
         lmstudio_timeout_seconds=_int("LMSTUDIO_TIMEOUT_SECONDS", 45),
