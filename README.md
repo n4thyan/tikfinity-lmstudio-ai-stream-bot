@@ -1,8 +1,8 @@
 # PotatoBrain Live AI Stream Bot
 
-A local AI livestream bot that connects live chat commands to a small LM Studio model and displays the replies in OBS through a terminal-style browser overlay.
+A local AI stream bot for Tikfinity, LM Studio and OBS. It lets livestream chat interact with a small local LLM, then displays the bot's replies on stream through a terminal-style OBS browser overlay.
 
-The project is built for practical stream automation: chat input, filtering, cooldowns, local LLM replies, OBS display output, optional browser text-to-speech, Discord webhook logging and an emergency pause control.
+The project is built for stream setups where viewers can send commands to an AI character during a live show. It includes practical controls around that interaction: username sanitisation, prompt filtering, output filtering, cooldowns, queue limits, Discord webhook logging, optional browser text-to-speech and an emergency pause system.
 
 ## Project status
 
@@ -125,7 +125,7 @@ kick-webhook
 
 ## Why this is a portfolio project
 
-This project demonstrates practical AI-assisted engineering rather than a simple chatbot wrapper. It combines local AI, livestream tooling, event-driven message handling, frontend overlay work, platform adapters, basic safety controls and operational tooling.
+This project demonstrates practical AI-assisted engineering for livestream interaction, not just a text chatbot. It combines local AI, livestream tooling, event-driven message handling, frontend overlay work, platform adapters, safety controls and operational tooling.
 
 It shows:
 
@@ -144,7 +144,7 @@ It shows:
 
 This is not a moderation replacement. Raw chat, raw usernames and raw model output should not be treated as safe for public display without filtering and review.
 
-It is also not a high-end AI agent. It is intentionally designed around small local models and a simple stream character. The goal is a practical, lightweight interaction loop that can be tested on a modest Windows setup.
+It is also not a high-end AI agent. It is intentionally designed around small local models and a simple stream character. The goal is a practical, lightweight live interaction loop that can be tested on a modest Windows setup.
 
 This project is not affiliated with TikTok, YouTube, Kick, Tikfinity, LM Studio or OBS. It is an independent local integration project using user-configured tools and APIs.
 
@@ -369,6 +369,6 @@ GitHub Actions also runs these checks on pushes and pull requests.
 
 ## Portfolio summary
 
-PotatoBrain Live AI Stream Bot is a local AI livestream automation project. It connects chat events to a small LM Studio model, pushes replies to an OBS browser overlay, optionally speaks them with browser TTS and logs activity to Discord. It demonstrates local LLM integration, async Python, event-driven stream tooling, safety controls, setup scripting, documentation and real-world testing under hardware constraints.
+PotatoBrain Live AI Stream Bot is a local AI livestream interaction project. It connects chat events to a small LM Studio model, pushes replies to an OBS browser overlay, optionally speaks them with browser TTS and logs activity to Discord. It demonstrates local LLM integration, async Python, event-driven stream tooling, safety controls, setup scripting, documentation and real-world testing under hardware constraints.
 
 For a website-ready project write-up, see [`docs/portfolio-case-study.md`](docs/portfolio-case-study.md).
