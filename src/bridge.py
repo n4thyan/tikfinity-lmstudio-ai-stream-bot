@@ -389,18 +389,22 @@ class StreamBridge:
             return build_fake_reply(command, self.mood)
 
         command_hint = {
-            "ask": "Answer the viewer in character.",
-            "roast": "Give a mild fictional roast of the AI or the situation.",
-            "lore": "Invent one short piece of harmless lore about the AI character.",
-        }.get(command.command, "Reply in character.")
+            "ask": "Answer the viewer's exact comment directly as PotatoBrain.",
+            "roast": "Give a mild fictional roast of PotatoBrain, the stream, or the situation. Do not attack the real viewer seriously.",
+            "lore": "Invent one short piece of harmless lore about PotatoBrain.",
+        }.get(command.command, "Reply in character as PotatoBrain.")
 
         viewer_message = (
+            "LIVE COMMENT EVENT\n"
+            "Role boundary: you are PotatoBrain. The viewer below is a separate person. You are not the viewer and you are not chat.\n"
+            "Reply only as PotatoBrain. Do not ask what the message is unless it is impossible to understand.\n"
             f"Platform: {command.platform}\n"
-            f"Public viewer name: {command.safe_username}\n"
+            f"Viewer display name: {command.safe_username}\n"
             f"Current mood: {self.mood}\n"
             f"Command: {command.command}\n"
-            f"Instruction: {command_hint}\n"
-            f"Viewer message: {command.prompt}"
+            f"Task: {command_hint}\n"
+            f"Viewer comment: {command.prompt}\n"
+            "PotatoBrain reply:"
         )
         return await self.llm.chat(self.personality, viewer_message)
 
