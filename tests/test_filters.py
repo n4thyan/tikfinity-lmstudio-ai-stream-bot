@@ -1,9 +1,13 @@
-from src.bridge import parse_command
+from src.bridge import ChatCommand, build_fake_reply, extract_comment_payload, parse_command
 from src.filters import SafetyConfig, filter_ai_output, filter_chat_text, sanitise_username
 
 
 def test_parse_ask_command() -> None:
     assert parse_command("!ask are you awake", "!") == ("ask", "are you awake")
+
+
+def test_parse_short_ask_alias() -> None:
+    assert parse_command("!q are you awake", "!") == ("ask", "are you awake")
 
 
 def test_parse_lore_command_gets_default_prompt() -> None:
@@ -43,3 +47,35 @@ def test_username_replaces_configured_risky_name() -> None:
     result = sanitise_username("replace_me_user", config)
 
     assert result.text.startswith("Viewer ")
+
+
+def test_extract_comment_payload_from_flat_shape() -> None:
+    payload = {"event": "chat", "uniqueId": "viewer_one", "comment": "!ask hello"}
+
+    assert extract_comment_payload(payload) == ("viewer_one", "!ask hello")
+
+
+def test_extract_comment_payload_from_nested_shape() -> None:
+    payload = {
+        "event": "message",
+        "data": {
+            "user": {"nickname": "Viewer Two"},
+            "commentText": "!lore",
+        },
+    }
+
+    assert extract_comment_payload(payload) == ("Viewer Two", "!lore")
+
+
+def test_extract_comment_payload_ignores_non_chat_events() -> None:
+    payload = {"event": "gift", "data": {"user": {"nickname": "viewer"}, "content": "rose"}}
+
+    assert extract_comment_payload(payload) is None
+
+
+def test_fake_reply_returns_stream_text() -> None:
+    command = ChatCommand("raw", "Viewer 1", "ask", "hello")
+    reply = build_fake_reply(command, "normal")
+
+    assert isinstance(reply, str)
+    assert reply
