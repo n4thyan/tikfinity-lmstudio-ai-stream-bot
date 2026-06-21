@@ -3,33 +3,32 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PotatoBrain Overlay</title>
+  <title>PotatoBrain Terminal Overlay</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <main class="shell">
-    <section class="window" aria-live="polite">
-      <header class="titlebar">
-        <div class="identity">
-          <span class="dot" aria-hidden="true"></span>
-          <div>
-            <span class="title">PotatoBrain.exe</span>
-            <span class="subtitle">tiny local AI · chat controlled</span>
-          </div>
+    <section class="terminal" aria-live="polite">
+      <header class="terminal-bar">
+        <div class="terminal-title">
+          <span class="term-dot" aria-hidden="true"></span>
+          <span class="title">C:\\POTATOBRAIN\\LIVE.EXE</span>
         </div>
         <span class="status" id="status">booting</span>
       </header>
 
-      <section class="screen">
-        <div class="meta-row">
-          <p class="label" id="speaker">POTATOBRAIN</p>
-          <p class="command-hint">try <strong>!ask</strong>, <strong>!mood</strong>, <strong>!lore</strong></p>
+      <section class="terminal-screen">
+        <div class="boot-row">
+          <span class="prompt-mark">&gt;</span>
+          <span id="speaker">POTATOBRAIN</span>
+          <span class="command-hint">commands: !ask  !mood  !lore  !status</span>
         </div>
+
         <p class="reply" id="reply">Waiting for TikTok chat...</p>
         <p class="prompt" id="prompt"></p>
       </section>
 
-      <footer class="footer">
+      <footer class="terminal-footer">
         <span id="mood">mood: normal</span>
         <span id="platform">platform: waiting</span>
         <span id="tts">tts: off</span>
